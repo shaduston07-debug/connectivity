@@ -160,8 +160,9 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         useWifi = wifi
         self.local = local
         self.lan = lan
-        env = BeamEnv(local: local, sinks: DocumentSinks(), lan: lan)
+        let env = BeamEnv(local: local, sinks: DocumentSinks(), lan: lan)
         env.useLan = wifi
+        self.env = env
         super.init()
         trustedCount = trusted.count
         loadHistory()
