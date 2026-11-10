@@ -131,7 +131,8 @@ public class Transfer {
 }
 
 public final class OutgoingTransfer: Transfer {
-    private unowned let link: PeerLink
+    // Weak: the UI keeps finished transfers around long after their connection has gone.
+    private weak var link: PeerLink?
     private let sources: [Source]
     private let received = DispatchSemaphore(value: 0)
     private var cancelRequested = false
@@ -151,19 +152,16 @@ public final class OutgoingTransfer: Transfer {
         if isFinished { return }
         cancelRequested = true
         if state == .waiting {
-            if finish(.cancelled) { link.trySend(Proto.cancel, ["tid": id]) }
+            if finish(.cancelled) { link?.trySend(Proto.cancel, ["tid": id]) }
         } else {
             lanSession?.close() // unblocks a write that is stuck
         }
     }
 
     func onAccepted(_ lan: [String: Any]?) {
-        guard state == .waiting else { return }
-        let link = self.link
-        link.sendQueue.async { [self] in
-            _ = link // keeps the link alive while sending
-            run(lan)
-        }
+        guard state == .waiting, let link = link else { return }
+        // The closure holds the link, so it stays alive while sending.
+        link.sendQueue.async { [self] in run(lan, link) }
     }
 
     func onDeclined() { finish(.declined) }
@@ -185,7 +183,7 @@ public final class OutgoingTransfer: Transfer {
         if linkLost && !overLan { throw ProtocolError("Connection lost") }
     }
 
-    private func connectLan(_ lan: [String: Any]) -> Session? {
+    private func connectLan(_ lan: [String: Any], _ link: PeerLink) -> Session? {
         let port = lan.int("port")
         let token = lan.string("token")
         guard let addrs = lan["addrs"] as? [String], (1...65535).contains(port), !token.isEmpty else { return nil }
@@ -206,9 +204,9 @@ public final class OutgoingTransfer: Transfer {
         return nil
     }
 
-    private func run(_ lan: [String: Any]?) {
+    private func run(_ lan: [String: Any]?, _ link: PeerLink) {
         if isFinished { return }
-        let ls = (lan != nil && link.env.useLan) ? connectLan(lan!) : nil
+        let ls = (lan != nil && link.env.useLan) ? connectLan(lan!, link) : nil
         let data = ls ?? link.session
         let overLan = ls != nil
         lock.lock()
@@ -274,7 +272,9 @@ public final class OutgoingTransfer: Transfer {
 }
 
 public final class IncomingTransfer: Transfer {
-    private unowned let link: PeerLink
+    // Weak: a transfer that moved to Wi-Fi can outlive the Bluetooth connection it started on.
+    private weak var link: PeerLink?
+    private let env: BeamEnv
     /// Where each finished file was saved.
     public private(set) var results: [String] = []
     public private(set) var accepted = false
@@ -287,6 +287,7 @@ public final class IncomingTransfer: Transfer {
 
     init(link: PeerLink, id: String, items: [ItemMeta], text: String?) {
         self.link = link
+        env = link.env
         super.init(id: id, peer: link.peer, items: items, text: text)
     }
 
@@ -296,7 +297,7 @@ public final class IncomingTransfer: Transfer {
         guard state == .waiting, !accepted else { return }
         accepted = true
         var msg: [String: Any] = ["tid": id]
-        if let lan = link.env.lan, link.env.useLan, lan.port > 0, !items.isEmpty {
+        if let lan = env.lan, env.useLan, lan.port > 0, !items.isEmpty {
             let addrs = lan.addresses()
             if !addrs.isEmpty {
                 let token = CryptoUtil.randomHex(16)
@@ -305,20 +306,20 @@ public final class IncomingTransfer: Transfer {
                 msg["lan"] = ["addrs": addrs, "port": Int(lan.port), "token": token] as [String: Any]
             }
         }
-        link.trySend(Proto.accept, msg)
+        link?.trySend(Proto.accept, msg)
         notifyUpdate()
     }
 
     public func decline() {
         lock.lock()
         defer { lock.unlock() }
-        if state == .waiting, !accepted, end(.declined, nil) { link.trySend(Proto.decline, ["tid": id]) }
+        if state == .waiting, !accepted, end(.declined, nil) { link?.trySend(Proto.decline, ["tid": id]) }
     }
 
     public override func cancel() {
         lock.lock()
         defer { lock.unlock() }
-        if end(.cancelled, nil) { link.trySend(Proto.cancel, ["tid": id]) }
+        if end(.cancelled, nil) { link?.trySend(Proto.cancel, ["tid": id]) }
     }
 
     func onRemoteCancel() {
@@ -360,7 +361,7 @@ public final class IncomingTransfer: Transfer {
             sink = nil
             lanSession?.close()
         }
-        if let t = lanToken { link.env.lan?.unregister(t) }
+        if let t = lanToken { env.lan?.unregister(t) }
         return true
     }
 
@@ -375,7 +376,7 @@ public final class IncomingTransfer: Transfer {
                 let i = Int(try f.json().int("index", default: -1))
                 guard sink == nil, i == index + 1, i < items.count else { throw ProtocolError("Unexpected file") }
                 index = i
-                sink = try link.env.sinks.create(item: items[i])
+                sink = try env.sinks.create(item: items[i])
                 if state == .waiting {
                     state = .transferring
                     notifyUpdate()
@@ -398,7 +399,7 @@ public final class IncomingTransfer: Transfer {
             }
         } catch {
             if end(.failed, (error as? LocalizedError)?.errorDescription ?? "Transfer failed") {
-                link.trySend(Proto.cancel, ["tid": id])
+                link?.trySend(Proto.cancel, ["tid": id])
             }
         }
     }

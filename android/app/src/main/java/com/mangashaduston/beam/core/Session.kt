@@ -17,6 +17,9 @@ object Proto {
     const val MAX_FRAME = 1 shl 20
 
     const val HELLO = 0x01
+
+    /** "I have stopped looking for devices." A device that connected only to be found can hang up. */
+    const val IDLE = 0x04
     const val OFFER = 0x10
     const val ACCEPT = 0x11
     const val DECLINE = 0x12

@@ -26,6 +26,9 @@ class PeerLink(
         fun onReady(link: PeerLink)
         fun onClosed(link: PeerLink, error: String?)
         fun onOffer(link: PeerLink, transfer: IncomingTransfer)
+
+        /** The other device has closed its send screen and no longer needs this connection. */
+        fun onPeerIdle(link: PeerLink) {}
     }
 
     val session = Session(duplex, env.local)
@@ -77,6 +80,11 @@ class PeerLink(
         return t
     }
 
+    /** Tells the other device we are no longer looking for devices to send to. */
+    fun sendIdle() {
+        trySend(Proto.IDLE, JSONObject())
+    }
+
     internal fun trySend(type: Int, json: JSONObject): Boolean = try {
         session.send(type, json)
         true
@@ -123,6 +131,7 @@ class PeerLink(
             Proto.DATA, Proto.FILE_END -> dataTarget?.handle(f, session)
             Proto.DONE -> incoming[f.json().optString("tid")]?.handle(f, session)
             Proto.RECEIVED -> outgoing[f.json().optString("tid")]?.onReceived()
+            Proto.IDLE -> listener.onPeerIdle(this)
         }
     }
 

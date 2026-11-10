@@ -151,13 +151,17 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
 
     private override init() {
+        let defaults = UserDefaults.standard
         let name = defaults.string(forKey: "beam.name") ?? UIDevice.current.name
+        let wifi = defaults.object(forKey: "beam.useWifi") as? Bool ?? true
+        let local = LocalInfo(identity: Identity.load(from: defaults), name: name, platform: "ios")
+        let lan = Engine.isExtension ? nil : LanServer(local: local)
         deviceName = name
-        useWifi = defaults.object(forKey: "beam.useWifi") as? Bool ?? true
-        local = LocalInfo(identity: Identity.load(from: defaults), name: name, platform: "ios")
-        lan = Engine.isExtension ? nil : LanServer(local: local)
+        useWifi = wifi
+        self.local = local
+        self.lan = lan
         env = BeamEnv(local: local, sinks: DocumentSinks(), lan: lan)
-        env.useLan = useWifi
+        env.useLan = wifi
         super.init()
         trustedCount = trusted.count
         loadHistory()
@@ -250,9 +254,18 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         seekers = max(0, seekers - 1)
         refresh()
         guard seekers == 0 else { return }
+        // Drop connections we made, and release devices that connected to be found.
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
             guard seekers == 0 else { return }
-            for e in links where e.outbound && !e.link.busy && inForeground { e.link.close() }
+            for e in links where !e.link.busy {
+                if e.outbound { e.link.close() } else if e.link.ready { e.link.sendIdle() }
+            }
+        }
+    }
+
+    func linkPeerIdle(_ link: PeerLink) {
+        DispatchQueue.main.async { [self] in
+            if seekers == 0, !link.busy { link.close() }
         }
     }
 

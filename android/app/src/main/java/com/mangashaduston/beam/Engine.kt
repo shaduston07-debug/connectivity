@@ -250,9 +250,17 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         visibleScreens = (visibleScreens - 1).coerceAtLeast(0)
     }
 
+    /** After the send screen closes: drop connections we made, and release devices that connected to be found. */
     private fun closeIdleOutbound() {
         if (seekers > 0) return
-        for (e in links.toList()) if (e.outbound && !e.link.busy) e.link.close()
+        val idle = links.filter { !it.link.busy }
+        thread(name = "beam-idle") {
+            for (e in idle) if (e.outbound) e.link.close() else if (e.link.ready) e.link.sendIdle()
+        }
+    }
+
+    override fun onPeerIdle(link: PeerLink) {
+        main.post { if (seekers == 0 && !link.busy) thread(name = "beam-idle") { link.close() } }
     }
 
     // ---- Connections ----

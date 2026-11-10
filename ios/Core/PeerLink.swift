@@ -5,6 +5,12 @@ public protocol PeerLinkListener: AnyObject {
     func linkReady(_ link: PeerLink)
     func linkClosed(_ link: PeerLink, error: String?)
     func link(_ link: PeerLink, offered transfer: IncomingTransfer)
+    /// The other device has closed its send screen and no longer needs this connection.
+    func linkPeerIdle(_ link: PeerLink)
+}
+
+public extension PeerLinkListener {
+    func linkPeerIdle(_ link: PeerLink) {}
 }
 
 /// One connection to another device. Either side can offer files over it.
@@ -69,6 +75,9 @@ public final class PeerLink {
         return t
     }
 
+    /// Tells the other device we are no longer looking for devices to send to.
+    public func sendIdle() { trySend(Proto.idle, [:]) }
+
     @discardableResult
     func trySend(_ type: UInt8, _ json: [String: Any]) -> Bool {
         (try? session.send(type, json: json)) != nil
@@ -126,6 +135,8 @@ public final class PeerLink {
             inc(try f.json().string("tid"))?.handle(f, from: session)
         case Proto.received:
             out(try f.json().string("tid"))?.onReceived()
+        case Proto.idle:
+            listener?.linkPeerIdle(self)
         default:
             break
         }

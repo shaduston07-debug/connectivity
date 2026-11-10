@@ -10,6 +10,8 @@ public enum Proto {
     public static let maxFrame = 1 << 20
 
     public static let hello: UInt8 = 0x01
+    /// "I have stopped looking for devices." A device that connected only to be found can hang up.
+    public static let idle: UInt8 = 0x04
     public static let offer: UInt8 = 0x10
     public static let accept: UInt8 = 0x11
     public static let decline: UInt8 = 0x12

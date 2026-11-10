@@ -34,6 +34,7 @@ final class BleTransport: NSObject {
     /// Peripherals we are connecting or connected to. CoreBluetooth needs them kept alive.
     private var dialing: [UUID: CBPeripheral] = [:]
     private var linked: Set<UUID> = []
+    private var restored: [CBPeripheral] = []
 
     /// - Parameter receiver: also act as a device others can find and connect to.
     ///   The share extension passes false: it only sends.
@@ -106,15 +107,17 @@ extension BleTransport: CBCentralManagerDelegate, CBPeripheralDelegate {
         if central.state != .poweredOn {
             dialing.removeAll()
             linked.removeAll()
+        } else {
+            // Connections from a previous launch can't be picked up mid-stream. Start clean.
+            restored.forEach { central.cancelPeripheralConnection($0) }
+            restored = []
         }
         applyScan()
         onStateChange?()
     }
 
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
-        // Connections from a previous launch can't be picked up mid-stream. Start clean.
-        let old = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
-        queue.async { old.forEach { central.cancelPeripheralConnection($0) } }
+        restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
