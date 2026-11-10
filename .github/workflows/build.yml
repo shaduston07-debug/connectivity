@@ -1,0 +1,116 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android app and protocol tests
+    runs-on: ubuntu-latest
+    env:
+      LC_ALL: C.UTF-8
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build the Swift test peer
+        working-directory: ios
+        run: swift build --product beam-cli
+
+      - name: Protocol tests (Kotlin, and Kotlin against Swift)
+        working-directory: android
+        run: BEAM_SWIFT_CLI="$GITHUB_WORKSPACE/ios/.build/debug/beam-cli" ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/Beam.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beam-apk
+          path: Beam.apk
+
+  ios:
+    name: iOS app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build (unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Beam.xcodeproj \
+            -scheme Beam \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/Beam.app/PlugIns/BeamShare.appex
+
+      - name: Show compile errors
+        if: failure()
+        working-directory: ios
+        run: grep -E "error:" build.log | sort -u | head -100 || true
+
+      - name: Package IPA
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Beam.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/Beam.ipa" Payload
+          ls -la "$GITHUB_WORKSPACE/Beam.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beam-ipa
+          path: Beam.ipa
+
+  release:
+    name: Publish "latest" release
+    needs: [android, ios]
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest Beam.apk Beam.ipa \
+            --target "$GITHUB_SHA" \
+            --title "Beam (build ${{ github.run_number }})" \
+            --notes "Built from ${GITHUB_SHA::7}. Beam.apk installs directly on Android. Beam.ipa is unsigned: install it with SideStore, AltStore, Sideloadly or similar."

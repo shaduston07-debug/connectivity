@@ -1,0 +1,99 @@
+# XcodeGen spec for the iOS app and its share extension.
+#   brew install xcodegen && xcodegen generate && open Beam.xcodeproj
+name: Beam
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settingGroups:
+  common:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGN_IDENTITY: ""
+targets:
+  Beam:
+    type: application
+    platform: iOS
+    sources:
+      - path: Core
+      - path: Shared
+      - path: App
+        excludes: ["Info.plist"]
+      - path: Assets.xcassets
+    dependencies:
+      - target: BeamShare
+        embed: true
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_NAME: Beam
+        PRODUCT_BUNDLE_IDENTIFIER: com.mangashaduston.beam
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Beam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        ITSAppUsesNonExemptEncryption: false
+        NSBluetoothAlwaysUsageDescription: Beam uses Bluetooth to find nearby devices and send files to them.
+        NSLocalNetworkUsageDescription: When both devices are on the same Wi-Fi network, Beam sends over it because it is much faster than Bluetooth.
+        NSPhotoLibraryAddUsageDescription: Beam saves the photos and videos you receive to your library.
+        # Lets Beam keep looking for senders, and finish transfers, while it is in the background.
+        UIBackgroundModes:
+          - bluetooth-central
+          - bluetooth-peripheral
+        # Received files appear in the Files app under On My iPhone > Beam.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+  BeamShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Core
+      - path: Shared
+      - path: ShareExtension
+        excludes: ["Info.plist"]
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_NAME: BeamShare
+        PRODUCT_BUNDLE_IDENTIFIER: com.mangashaduston.beam.share
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BEAM_EXTENSION
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Beam
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSBluetoothAlwaysUsageDescription: Beam uses Bluetooth to find nearby devices and send files to them.
+        NSLocalNetworkUsageDescription: When both devices are on the same Wi-Fi network, Beam sends over it because it is much faster than Bluetooth.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 100
+              NSExtensionActivationSupportsImageWithMaxCount: 100
+              NSExtensionActivationSupportsMovieWithMaxCount: 100
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1

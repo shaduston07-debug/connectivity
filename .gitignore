@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+*.xcodeproj
+DerivedData/
+Package.resolved
+.DS_Store
+App/Info.plist
+ShareExtension/Info.plist
