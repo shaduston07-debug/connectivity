@@ -76,6 +76,9 @@ class TransferModel(val transfer: Transfer, val incoming: Boolean) {
     }
 }
 
+/** A device whose transfers start without asking. */
+class TrustedDevice(val id: String, val name: String)
+
 class HistoryItem(
     val time: Long,
     val peerName: String,
@@ -84,9 +87,12 @@ class HistoryItem(
     val mimes: List<String>,
     val text: String?,
     val incoming: Boolean,
+    /** The other device's ID. Empty for items saved by older versions. */
+    val peerId: String = "",
 ) {
     fun toJson(): JSONObject = JSONObject().put("time", time).put("peer", peerName).put("summary", summary)
         .put("uris", JSONArray(uris)).put("mimes", JSONArray(mimes)).put("text", text ?: JSONObject.NULL).put("incoming", incoming)
+        .put("peerId", peerId)
 
     companion object {
         fun fromJson(j: JSONObject): HistoryItem {
@@ -94,6 +100,7 @@ class HistoryItem(
             return HistoryItem(
                 j.optLong("time"), j.optString("peer"), j.optString("summary"), list("uris"), list("mimes"),
                 if (j.isNull("text")) null else j.optString("text"), j.optBoolean("incoming", true),
+                j.optString("peerId"),
             )
         }
     }
@@ -213,20 +220,69 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         prefs.edit().putBoolean("useWifi", on).apply()
     }
 
-    fun isTrusted(peerId: String): Boolean = prefs.getStringSet("trusted", emptySet())!!.contains(peerId)
+    // ---- Trusted devices ----
 
-    fun trust(peerId: String) {
-        prefs.edit().putStringSet("trusted", prefs.getStringSet("trusted", emptySet())!! + peerId).apply()
-        trustedCount = prefs.getStringSet("trusted", emptySet())!!.size
+    /** Devices whose transfers start without asking, by name. */
+    val trustedDevices = mutableStateListOf<TrustedDevice>()
+
+    val trustedCount: Int get() = trustedDevices.size
+
+    init {
+        // Declared down here, so it is loaded here: Kotlin runs initializers in order.
+        loadTrusted()
+    }
+
+    fun isTrusted(peerId: String): Boolean = trustedDevices.any { it.id == peerId }
+
+    fun trust(peerId: String, name: String) {
+        if (peerId.isEmpty()) return
+        val i = trustedDevices.indexOfFirst { it.id == peerId }
+        if (i >= 0) trustedDevices[i] = TrustedDevice(peerId, name) else trustedDevices.add(TrustedDevice(peerId, name))
+        saveTrusted()
+    }
+
+    fun untrust(peerId: String) {
+        trustedDevices.removeAll { it.id == peerId }
+        saveTrusted()
     }
 
     fun forgetTrusted() {
-        prefs.edit().remove("trusted").apply()
-        trustedCount = 0
+        trustedDevices.clear()
+        saveTrusted()
     }
 
-    var trustedCount by mutableStateOf(prefs.getStringSet("trusted", emptySet())!!.size)
-        private set
+    /** Devices you could trust: the ones nearby now, then the ones in your history, newest first. */
+    fun trustCandidates(): List<TrustedDevice> {
+        val out = LinkedHashMap<String, TrustedDevice>()
+        for (p in peers) out.putIfAbsent(p.id, TrustedDevice(p.id, p.name))
+        for (h in history) if (h.peerId.isNotEmpty()) out.putIfAbsent(h.peerId, TrustedDevice(h.peerId, h.peerName))
+        return out.values.filter { !isTrusted(it.id) }
+    }
+
+    private fun loadTrusted() {
+        val names = runCatching { JSONObject(prefs.getString("trustedNames", "{}")!!) }.getOrDefault(JSONObject())
+        // Older versions stored only IDs. Use a name from history where there is one.
+        for (id in prefs.getStringSet("trusted", emptySet())!!) {
+            val name = names.optString(id).ifEmpty { history.firstOrNull { it.peerId == id }?.peerName ?: "A device you trusted" }
+            trustedDevices.add(TrustedDevice(id, name))
+        }
+        trustedDevices.sortBy { it.name.lowercase() }
+    }
+
+    private fun saveTrusted() {
+        val names = JSONObject()
+        for (d in trustedDevices) names.put(d.id, d.name)
+        prefs.edit().putStringSet("trusted", trustedDevices.map { it.id }.toSet()).putString("trustedNames", names.toString()).apply()
+    }
+
+    /** Keeps a trusted device's name current when it renames itself. */
+    private fun refreshTrustedName(peerId: String, name: String) {
+        val i = trustedDevices.indexOfFirst { it.id == peerId }
+        if (i >= 0 && trustedDevices[i].name != name) {
+            trustedDevices[i] = TrustedDevice(peerId, name)
+            saveTrusted()
+        }
+    }
 
     // ---- Bluetooth state ----
 
@@ -370,12 +426,12 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         val t = m.transfer
         if (t.state != TransferState.DONE) return
         if (t is IncomingTransfer) {
-            addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, t.results.toList(), t.items.map { guessMime(it.name, it.mime) }, t.text, true))
+            addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, t.results.toList(), t.items.map { guessMime(it.name, it.mime) }, t.text, true, m.peerId))
             if (t.text != null && uiVisible) {
                 app.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Inkwell Drop", t.text))
             }
         } else {
-            addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, emptyList(), emptyList(), null, false))
+            addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, emptyList(), emptyList(), null, false, m.peerId))
             Shortcuts.remember(app, m.peerId, m.peerName)
         }
     }
@@ -396,12 +452,13 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
     override fun onOffer(link: PeerLink, transfer: IncomingTransfer) {
         main.post {
             val m = track(transfer, true)
+            refreshTrustedName(transfer.peer.id, transfer.peer.name)
             if (isTrusted(transfer.peer.id)) accept(m, false) else Notifier.updateIncoming(app, this, m)
         }
     }
 
     fun accept(m: TransferModel, always: Boolean) {
-        if (always) trust(m.peerId)
+        if (always) trust(m.peerId, m.peerName)
         thread(name = "drop-accept") { (m.transfer as? IncomingTransfer)?.accept() }
     }
 

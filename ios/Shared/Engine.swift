@@ -81,6 +81,14 @@ struct HistoryItem: Codable, Identifiable {
     let photosSaved: Int
     let text: String?
     let incoming: Bool
+    /// The other device's ID. Missing from items saved by older versions.
+    var peerId: String? = nil
+}
+
+/// A device whose transfers start without asking.
+struct TrustedDevice: Identifiable, Equatable {
+    let id: String
+    let name: String
 }
 
 enum MediaKind { case photo, video, other }
@@ -136,7 +144,9 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     @Published private(set) var bluetooth = BluetoothStatus.unknown
     @Published private(set) var deviceName: String
     @Published private(set) var useWifi: Bool
-    @Published private(set) var trustedCount = 0
+    /// Devices whose transfers start without asking, by name.
+    @Published private(set) var trustedDevices: [TrustedDevice] = []
+    var trustedCount: Int { trustedDevices.count }
 
     private let defaults = UserDefaults.standard
     private let local: LocalInfo
@@ -169,8 +179,8 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         self.env = env
         super.init()
         setUpDirectLink()
-        trustedCount = trusted.count
         loadHistory()
+        loadTrusted()
     }
 
     /// Devices paired for Wi-Fi Aware (iOS 26).
@@ -247,16 +257,61 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         defaults.set(on, forKey: "drop.useWifi")
     }
 
-    private var trusted: [String] { defaults.stringArray(forKey: "drop.trusted") ?? [] }
+    // MARK: Trusted devices
 
-    func trust(_ peerId: String) {
-        if !trusted.contains(peerId) { defaults.set(trusted + [peerId], forKey: "drop.trusted") }
-        trustedCount = trusted.count
+    func isTrusted(_ peerId: String) -> Bool { trustedDevices.contains { $0.id == peerId } }
+
+    func trust(_ peerId: String, name: String) {
+        guard !peerId.isEmpty else { return }
+        if let i = trustedDevices.firstIndex(where: { $0.id == peerId }) {
+            trustedDevices[i] = TrustedDevice(id: peerId, name: name)
+        } else {
+            trustedDevices.append(TrustedDevice(id: peerId, name: name))
+        }
+        saveTrusted()
+    }
+
+    func untrust(_ peerId: String) {
+        trustedDevices.removeAll { $0.id == peerId }
+        saveTrusted()
     }
 
     func forgetTrusted() {
-        defaults.removeObject(forKey: "drop.trusted")
-        trustedCount = 0
+        trustedDevices = []
+        saveTrusted()
+    }
+
+    /// Devices you could trust: the ones nearby now, then the ones in your history, newest first.
+    var trustCandidates: [TrustedDevice] {
+        var seen = Set<String>()
+        var out: [TrustedDevice] = []
+        for p in peers where seen.insert(p.id).inserted { out.append(TrustedDevice(id: p.id, name: p.name)) }
+        for h in history {
+            if let id = h.peerId, !id.isEmpty, seen.insert(id).inserted { out.append(TrustedDevice(id: id, name: h.peerName)) }
+        }
+        return out.filter { !isTrusted($0.id) }
+    }
+
+    private func loadTrusted() {
+        let names = defaults.dictionary(forKey: "drop.trustedNames") as? [String: String] ?? [:]
+        // Older versions stored only IDs. Use a name from history where there is one.
+        trustedDevices = (defaults.stringArray(forKey: "drop.trusted") ?? []).map { id in
+            TrustedDevice(id: id, name: names[id] ?? history.first { $0.peerId == id }?.peerName ?? "A device you trusted")
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func saveTrusted() {
+        defaults.set(trustedDevices.map(\.id), forKey: "drop.trusted")
+        defaults.set(Dictionary(trustedDevices.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a }), forKey: "drop.trustedNames")
+    }
+
+    /// Keeps a trusted device's name current when it renames itself.
+    private func refreshTrustedName(_ peerId: String, _ name: String) {
+        if let i = trustedDevices.firstIndex(where: { $0.id == peerId }), trustedDevices[i].name != name {
+            trustedDevices[i] = TrustedDevice(id: peerId, name: name)
+            saveTrusted()
+        }
     }
 
     // MARK: Bluetooth state
@@ -411,7 +466,8 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
                 return
             }
             let m = track(transfer, incoming: true)
-            if trusted.contains(transfer.peer.id) {
+            refreshTrustedName(transfer.peer.id, transfer.peer.name)
+            if isTrusted(transfer.peer.id) {
                 accept(m, always: false)
             } else if !inForeground {
                 notifyOffer(m)
@@ -420,7 +476,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     }
 
     func accept(_ m: TransferModel, always: Bool) {
-        if always { trust(m.peerId) }
+        if always { trust(m.peerId, name: m.peerName) }
         DispatchQueue.global(qos: .userInitiated).async { (m.transfer as? IncomingTransfer)?.accept() }
     }
 
@@ -447,7 +503,8 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         }
         guard let t = m.transfer as? IncomingTransfer else {
             if !Engine.isExtension {
-                addHistory(HistoryItem(time: Date(), peerName: m.peerName, summary: m.summary, files: [], photosSaved: 0, text: nil, incoming: false))
+                addHistory(HistoryItem(time: Date(), peerName: m.peerName, summary: m.summary, files: [], photosSaved: 0, text: nil,
+                                       incoming: false, peerId: m.peerId))
             }
             return
         }
@@ -456,7 +513,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         saveMediaToPhotos(paths) { [self] kept, savedCount in
             addHistory(HistoryItem(time: Date(), peerName: m.peerName, summary: m.summary,
                                    files: kept.map { ($0 as NSString).lastPathComponent },
-                                   photosSaved: savedCount, text: t.text, incoming: true))
+                                   photosSaved: savedCount, text: t.text, incoming: true, peerId: m.peerId))
             if !inForeground {
                 let body = t.text ?? (savedCount > 0 && kept.isEmpty ? "Saved to Photos." : "Open Inkwell Drop to see it. Files are in the Files app, under Inkwell Drop.")
                 notify(id: m.id, title: "Received \(m.summary) from \(m.peerName)", body: body)

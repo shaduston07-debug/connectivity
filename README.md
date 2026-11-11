@@ -6,7 +6,7 @@ Inkwell Drop sends photos, videos, files, links and text between Apple and Andro
 - **Bluetooth only.** Devices find each other and transfer over Bluetooth LE. Wi-Fi can be off.
 - **Fast without a Wi-Fi network.** File data moves off Bluetooth onto Wi-Fi on its own whenever it can (see *How fast is it?*). No setup for the shared-network and hotspot cases, and nothing goes over the internet.
 - **Android receives at any time.** A small background service keeps the phone visible, and offers arrive as a notification with Accept and Decline.
-- **Always accept.** Tick "Always accept from this device" once and later transfers from that device start by themselves.
+- **Trusted devices.** In Settings › Trusted devices, pick people from your recent history (or whoever is nearby). Anything they send starts right away, without asking you to accept. You can also tap "Trust" on an incoming request. Remove a device there at any time.
 - **Saved where you expect.** Photos and videos go to the gallery / Photos. Other files go to Downloads (Android) or the Files app (iOS).
 - **Encrypted.** Every connection is encrypted end to end with fresh keys, and each device proves its identity before "always accept" applies.
 

@@ -97,7 +97,7 @@ struct ContentView: View {
         }
         .alert(offerTitle, isPresented: offerShown, presenting: engine.pendingOffer) { offer in
             Button("Accept") { engine.accept(offer, always: false) }
-            Button("Always Accept from \(offer.peerName)") { engine.accept(offer, always: true) }
+            Button("Trust \(offer.peerName)") { engine.accept(offer, always: true) }
             Button("Decline", role: .cancel) { engine.decline(offer) }
         } message: { offer in
             Text(offer.transfer.text ?? formatBytes(offer.totalBytes))

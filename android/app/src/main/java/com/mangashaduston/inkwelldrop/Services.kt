@@ -168,6 +168,7 @@ object Notifier {
                 nm.notify(id, NotificationCompat.Builder(ctx, PROGRESS)
                     .setSmallIcon(R.drawable.ic_drop)
                     .setContentTitle("Receiving ${m.summary} from ${m.peerName}")
+                    .setSubText(if (e.isTrusted(m.peerId)) "Trusted device" else null)
                     .setProgress(100, pct, m.totalBytes == 0L)
                     .setOngoing(true)
                     .setOnlyAlertOnce(true)

@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
         val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(50)) { share(it) }
         val pickFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { share(it) }
         var showSettings by remember { mutableStateOf(false) }
+        var showTrusted by remember { mutableStateOf(false) }
         var writingText by remember { mutableStateOf(false) }
 
         // People who set up an earlier version haven't been asked for direct Wi-Fi yet.
@@ -222,7 +223,15 @@ class MainActivity : ComponentActivity() {
         }
 
         if (showSettings) {
-            ModalBottomSheet(onDismissRequest = { showSettings = false }) { Settings() }
+            ModalBottomSheet(onDismissRequest = { showSettings = false }) {
+                Settings(onTrusted = {
+                    showSettings = false
+                    showTrusted = true
+                })
+            }
+        }
+        if (showTrusted) {
+            ModalBottomSheet(onDismissRequest = { showTrusted = false }) { TrustedDevices() }
         }
         if (writingText) {
             var text by remember { mutableStateOf("") }
@@ -369,7 +378,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Settings() {
+    private fun Settings(onTrusted: () -> Unit) {
         val e = engine
         var name by remember { mutableStateOf(e.deviceName) }
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
@@ -385,6 +394,20 @@ class MainActivity : ComponentActivity() {
             SettingSwitch("Faster over Wi-Fi", "Big files go much faster on the same Wi-Fi, a hotspot, or a direct Wi-Fi link between phones. Nothing is uploaded.", e.useWifi) { e.updateUseWifi(it) }
             SettingSwitch("Ready to receive", "Lets nearby people send to you, even when the app is closed.", e.receiving) { e.updateReceiving(it) }
 
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable(onClick = onTrusted).padding(vertical = 10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Trusted devices", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        when (e.trustedCount) {
+                            0 -> "Receive from people you choose without being asked."
+                            1 -> "1 device can send to you without asking."
+                            else -> "${e.trustedCount} devices can send to you without asking."
+                        },
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = onTrusted) { Text("Manage") }
+            }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text("Quick Settings tile", style = MaterialTheme.typography.bodyLarge)
@@ -392,18 +415,76 @@ class MainActivity : ComponentActivity() {
                 }
                 TextButton(onClick = { addTile() }) { Text("Add") }
             }
-            if (e.trustedCount > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Always accept", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "From " + (if (e.trustedCount == 1) "one person" else "${e.trustedCount} people") + " without asking.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+        }
+    }
+
+    /** Pick who can send to you without being asked, from the devices you've used before. */
+    @Composable
+    private fun TrustedDevices() {
+        val e = engine
+        val candidates = e.trustCandidates()
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+            Text("Trusted devices", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Anything a trusted device sends you starts right away, without asking. You'll still get a notification.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+            if (e.trustedDevices.isEmpty()) {
+                Text("No trusted devices yet.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 8.dp))
+            } else {
+                Card {
+                    e.trustedDevices.forEachIndexed { index, d ->
+                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 64.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        DeviceRow(d.name, "Sends without asking", trusted = true) {
+                            TextButton(onClick = { e.untrust(d.id) }) { Text("Remove") }
+                        }
                     }
-                    TextButton(onClick = { e.forgetTrusted() }) { Text("Ask again") }
                 }
             }
+
+            Text(
+                "Add from your recent devices", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+            )
+            if (candidates.isEmpty()) {
+                Text(
+                    "People you send to or receive from will show up here.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Card {
+                    candidates.forEachIndexed { index, d ->
+                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 64.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        val nearby = e.peers.any { it.id == d.id }
+                        DeviceRow(d.name, if (nearby) "Nearby now" else lastSeen(d.id), trusted = false) {
+                            Button(onClick = { e.trust(d.id, d.name) }) { Text("Trust") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun lastSeen(peerId: String): String {
+        val item = engine.history.firstOrNull { it.peerId == peerId } ?: return ""
+        return "Last " + (if (item.incoming) "received " else "sent ") +
+            DateUtils.getRelativeTimeSpanString(item.time, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString().replaceFirstChar { it.lowercase() }
+    }
+
+    @Composable
+    private fun DeviceRow(name: String, detail: String, trusted: Boolean, action: @Composable () -> Unit) {
+        val tint = if (trusted) Color(0xFF16A34A) else MaterialTheme.colorScheme.primary
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp).clip(CircleShape).background(tint.copy(alpha = 0.14f))) {
+                Text(name.take(1).uppercase(), color = tint, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            action()
         }
     }
 

@@ -137,7 +137,7 @@ fun IncomingOfferDialog(engine: Engine) {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { always = !always }) {
                     Checkbox(checked = always, onCheckedChange = { always = it })
-                    Text("Always accept from ${offer.peerName}")
+                    Text("Trust ${offer.peerName} (don't ask again)")
                 }
             }
         },

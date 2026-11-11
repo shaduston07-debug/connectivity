@@ -27,6 +27,20 @@ struct SettingsView: View {
                     Text("Big files and videos go much faster when you're both on the same Wi-Fi, or one of you joins the other's hotspot. Nothing is uploaded to the internet.")
                 }
 
+                Section {
+                    NavigationLink {
+                        TrustedDevicesView()
+                    } label: {
+                        HStack {
+                            Text("Trusted Devices")
+                            Spacer()
+                            Text(engine.trustedCount == 0 ? "None" : "\(engine.trustedCount)").foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    Text("Receive from people you choose without being asked each time.")
+                }
+
                 #if canImport(DeviceDiscoveryUI) && canImport(WiFiAware)
                 if #available(iOS 26.0, *), engine.canPair {
                     PairingSection(paired: engine.pairedDevices)
@@ -43,13 +57,6 @@ struct SettingsView: View {
                     Text("There are buttons to receive, send photos and send files. You can also put them on the Lock Screen or the Action button.")
                 }
 
-                if engine.trustedCount > 0 {
-                    Section {
-                        Button("Ask Again Before Accepting", role: .destructive) { engine.forgetTrusted() }
-                    } footer: {
-                        Text("You chose to always accept from \(engine.trustedCount == 1 ? "one device" : "\(engine.trustedCount) devices").")
-                    }
-                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -96,3 +103,79 @@ private struct PairingSection: View {
     }
 }
 #endif
+
+/// Pick who can send to you without being asked, from the devices you've used before.
+struct TrustedDevicesView: View {
+    @ObservedObject private var engine = Engine.shared
+
+    var body: some View {
+        List {
+            Section {
+                if engine.trustedDevices.isEmpty {
+                    Text("No trusted devices yet.").foregroundStyle(.secondary)
+                }
+                ForEach(engine.trustedDevices) { device in
+                    DeviceRow(name: device.name, detail: "Sends without asking", trusted: true)
+                        .swipeActions {
+                            Button("Remove", role: .destructive) { engine.untrust(device.id) }
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) { engine.untrust(device.id) } label: {
+                                Label("Remove", systemImage: "minus.circle")
+                            }
+                        }
+                }
+            } footer: {
+                Text("Anything a trusted device sends you starts right away, without asking. Swipe left to remove one.")
+            }
+
+            Section {
+                let candidates = engine.trustCandidates
+                if candidates.isEmpty {
+                    Text("People you send to or receive from will show up here.").foregroundStyle(.secondary)
+                }
+                ForEach(candidates) { device in
+                    HStack {
+                        DeviceRow(name: device.name, detail: detail(for: device.id), trusted: false)
+                        Button("Trust") { withAnimation { engine.trust(device.id, name: device.name) } }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    }
+                }
+            } header: {
+                Text("Add from your recent devices")
+            }
+        }
+        .navigationTitle("Trusted Devices")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func detail(for id: String) -> String {
+        if engine.peers.contains(where: { $0.id == id }) { return "Nearby now" }
+        guard let item = engine.history.first(where: { $0.peerId == id }) else { return "" }
+        return "Last \(item.incoming ? "received" : "sent") \(item.time.formatted(.relative(presentation: .named)))"
+    }
+}
+
+private struct DeviceRow: View {
+    let name: String
+    let detail: String
+    let trusted: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(String(name.prefix(1)).uppercased())
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(trusted ? Color.green : Color.accentColor)
+                .frame(width: 34, height: 34)
+                .background((trusted ? Color.green : Color.accentColor).opacity(0.14), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).lineLimit(1)
+                if !detail.isEmpty {
+                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}

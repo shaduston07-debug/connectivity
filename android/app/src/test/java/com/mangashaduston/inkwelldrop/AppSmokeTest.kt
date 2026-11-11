@@ -68,6 +68,31 @@ class AppSmokeTest {
     }
 
     @Test
+    fun trustedDevicesComeFromHistoryAndPersist() {
+        val prefs = app.getSharedPreferences("drop", android.content.Context.MODE_PRIVATE)
+        val history = org.json.JSONArray()
+            .put(HistoryItem(2000, "Sam's Pixel", "a.jpg", emptyList(), emptyList(), null, true, "abc").toJson())
+            .put(HistoryItem(1500, "Sam's Pixel", "b.jpg", emptyList(), emptyList(), null, false, "abc").toJson())
+            .put(HistoryItem(1000, "Old entry", "c.jpg", emptyList(), emptyList(), null, true).toJson())
+        // "legacy" was trusted by an older version, which stored only the ID.
+        prefs.edit().clear().putString("history", history.toString()).putStringSet("trusted", setOf("legacy")).commit()
+
+        val e = Engine(app)
+        assertEquals(listOf("A device you trusted"), e.trustedDevices.map { it.name })
+        assertEquals(listOf("abc"), e.trustCandidates().map { it.id })
+
+        e.trust("abc", "Sam's Pixel")
+        assertTrue(e.isTrusted("abc"))
+        assertTrue(e.trustCandidates().isEmpty())
+
+        val again = Engine(app)
+        assertEquals(setOf("abc", "legacy"), again.trustedDevices.map { it.id }.toSet())
+        assertEquals("Sam's Pixel", again.trustedDevices.first { it.id == "abc" }.name)
+        again.untrust("legacy")
+        assertEquals(listOf("abc"), Engine(app).trustedDevices.map { it.id })
+    }
+
+    @Test
     fun identitySurvivesRestart() {
         val first = Engine(app).local.id
         assertEquals(first, Engine(app).local.id)
