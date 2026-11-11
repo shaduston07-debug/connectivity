@@ -31,6 +31,12 @@ public protocol Duplex: AnyObject {
     /// Blocks until the bytes have been handed to the transport.
     func write(_ data: Data) throws
     func close()
+    /// Gives up on a read after this long. 0 waits forever. Only used while connecting.
+    func setReadTimeout(seconds: Int)
+}
+
+public extension Duplex {
+    func setReadTimeout(seconds: Int) {}
 }
 
 public struct PeerInfo: Equatable {

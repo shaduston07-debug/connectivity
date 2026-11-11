@@ -37,6 +37,9 @@ interface Duplex {
     val input: InputStream
     val output: OutputStream
     fun close()
+
+    /** Gives up on a read after this long. 0 waits forever. Only used while connecting. */
+    fun setReadTimeout(ms: Int) {}
 }
 
 data class PeerInfo(val id: String, val name: String, val platform: String)

@@ -127,6 +127,68 @@ class ProtocolTest {
     @Test
     fun movesDataToWifiWhenAvailable() = sendAndCheck(true)
 
+    /** Stands in for Wi-Fi Aware: a loopback connection, used only when there is no shared network. */
+    class LoopbackDirect : DirectLink {
+        val prepared = java.util.concurrent.atomic.AtomicInteger()
+        val released = java.util.concurrent.atomic.AtomicInteger()
+        override fun prepare(transferId: String, lanPort: Int): org.json.JSONObject? {
+            prepared.incrementAndGet()
+            return org.json.JSONObject().put("kind", "loopback").put("port", lanPort)
+        }
+
+        override fun release(transferId: String) {
+            released.incrementAndGet()
+        }
+
+        override fun connect(info: org.json.JSONObject, attach: (Duplex) -> Session?, cancelled: () -> Boolean): Session? {
+            if (info.optString("kind") != "loopback") return null
+            return attach(SocketDuplex(Socket("127.0.0.1", info.getInt("port"))))
+        }
+    }
+
+    @Test
+    fun usesDirectLinkWithoutSharedNetwork() {
+        val a = TestPeer("alice", false)
+        val b = TestPeer("bob", true)
+        b.lanServer!!.addressProvider = { emptyList() } // not on any shared network
+        val direct = LoopbackDirect()
+        a.env.direct = direct
+        b.env.direct = direct
+        pair(a, b)
+        val src = Files.createTempDirectory("drop-src").toFile()
+        val file = randomFile(src, "clip.mov", 1_234_567)
+        val out = a.link.offer(listOf(FileSource(file)), null)
+        await(out)
+        assertEquals(out.error, TransferState.DONE, out.state)
+        assertTrue("should have used the direct link", out.viaLan)
+        assertArrayEquals(file.readBytes(), File(b.dir, file.name).readBytes())
+        assertEquals(1, direct.prepared.get())
+        val end = System.currentTimeMillis() + 2000
+        while (direct.released.get() == 0 && System.currentTimeMillis() < end) Thread.sleep(10)
+        assertEquals(1, direct.released.get())
+    }
+
+    @Test
+    fun fallsBackWhenDirectLinkFails() {
+        val a = TestPeer("alice", false)
+        val b = TestPeer("bob", true)
+        b.lanServer!!.addressProvider = { emptyList() }
+        a.env.direct = object : DirectLink {
+            override fun prepare(transferId: String, lanPort: Int) = null
+            override fun release(transferId: String) {}
+            override fun connect(info: org.json.JSONObject, attach: (Duplex) -> Session?, cancelled: () -> Boolean): Session? = null
+        }
+        b.env.direct = LoopbackDirect()
+        pair(a, b)
+        val src = Files.createTempDirectory("drop-src").toFile()
+        val file = randomFile(src, "a.bin", 50_000)
+        val out = a.link.offer(listOf(FileSource(file)), null)
+        await(out)
+        assertEquals(TransferState.DONE, out.state)
+        assertFalse(out.viaLan)
+        assertArrayEquals(file.readBytes(), File(b.dir, file.name).readBytes())
+    }
+
     @Test
     fun sendsText() {
         val a = TestPeer("alice", false)
@@ -241,15 +303,17 @@ class ProtocolTest {
         }
     }
 
-    private fun kotlinToSwift(lan: Boolean) {
+    private fun kotlinToSwift(lan: Boolean, direct: Boolean = false) {
         val cli = swiftCli()
         val outDir = Files.createTempDirectory("drop-swift-out").toFile()
         val args = mutableListOf(cli, "recv", outDir.path)
         if (lan) args.add("--lan")
+        if (direct) args.add("--direct")
         val p = ProcessBuilder(args).redirectErrorStream(true).start()
         try {
             val port = waitForLine(p, "READY ").removePrefix("READY ").trim().toInt()
             val a = TestPeer("kotlin", false)
+            if (direct) a.env.direct = LoopbackDirect()
             a.attach(Socket("127.0.0.1", port))
             assertTrue(a.ready.await(5, TimeUnit.SECONDS))
             assertEquals("swift", a.link.peer.name)
@@ -258,8 +322,8 @@ class ProtocolTest {
             val out = a.link.offer(files.map { FileSource(it) }, null)
             await(out)
             assertEquals(out.error, TransferState.DONE, out.state)
-            assertEquals(lan, out.viaLan)
-            assertEquals("DONE DONE lan=$lan", waitForLine(p, "DONE "))
+            assertEquals(lan || direct, out.viaLan)
+            assertEquals("DONE DONE lan=${lan || direct}", waitForLine(p, "DONE "))
             for (f in files) assertArrayEquals(f.readBytes(), File(outDir, f.name).readBytes())
             val text = a.link.offer(emptyList(), "héllo from kotlin")
             await(text)
@@ -271,13 +335,18 @@ class ProtocolTest {
         }
     }
 
-    private fun swiftToKotlin(lan: Boolean) {
+    private fun swiftToKotlin(lan: Boolean, direct: Boolean = false) {
         val cli = swiftCli()
-        val b = TestPeer("kotlin", lan)
+        val b = TestPeer("kotlin", lan || direct)
+        if (direct) {
+            b.lanServer!!.addressProvider = { emptyList() }
+            b.env.direct = LoopbackDirect()
+        }
         val server = ServerSocket(0)
         val src = Files.createTempDirectory("drop-src").toFile()
         val files = listOf(randomFile(src, "video.mov", 2_500_123), randomFile(src, oddName, 77))
-        val p = ProcessBuilder(listOf(cli, "send", "127.0.0.1", server.localPort.toString()) + files.map { it.path })
+        val extra = if (direct) listOf("--direct") else emptyList()
+        val p = ProcessBuilder(listOf(cli, "send", "127.0.0.1", server.localPort.toString()) + files.map { it.path } + extra)
             .redirectErrorStream(true).start()
         try {
             b.attach(server.accept())
@@ -285,9 +354,9 @@ class ProtocolTest {
             assertEquals("swift", inc.peer.name)
             await(inc)
             assertEquals(inc.error, TransferState.DONE, inc.state)
-            assertEquals(lan, inc.viaLan)
+            assertEquals(lan || direct, inc.viaLan)
             for (f in files) assertArrayEquals(f.readBytes(), File(b.dir, f.name).readBytes())
-            assertEquals("DONE DONE lan=$lan", waitForLine(p, "DONE "))
+            assertEquals("DONE DONE lan=${lan || direct}", waitForLine(p, "DONE "))
         } finally {
             p.destroy()
             server.close()
@@ -305,4 +374,10 @@ class ProtocolTest {
 
     @Test
     fun interopSwiftToKotlinWifi() = swiftToKotlin(true)
+
+    @Test
+    fun interopKotlinToSwiftDirect() = kotlinToSwift(false, direct = true)
+
+    @Test
+    fun interopSwiftToKotlinDirect() = swiftToKotlin(false, direct = true)
 }

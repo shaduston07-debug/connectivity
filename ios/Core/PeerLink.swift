@@ -119,7 +119,7 @@ public final class PeerLink {
             listener?.link(self, offered: t)
         case Proto.accept:
             let j = try f.json()
-            out(j.string("tid"))?.onAccepted(j["lan"] as? [String: Any])
+            out(j.string("tid"))?.onAccepted(j["lan"] as? [String: Any], j["direct"] as? [String: Any])
         case Proto.decline:
             out(try f.json().string("tid"))?.onDeclined()
         case Proto.cancel:
@@ -210,7 +210,9 @@ public final class LanServer {
         lock.unlock()
     }
 
-    private func serve(_ sock: TcpSocket) {
+    /// Handles a fast connection that arrived some other way than this server's own socket,
+    /// such as over Wi-Fi Aware. Blocks until the transfer on it ends.
+    public func serve(_ sock: Duplex) {
         var transfer: IncomingTransfer?
         defer { sock.close() }
         do {

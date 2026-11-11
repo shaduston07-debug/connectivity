@@ -33,9 +33,37 @@ interface SinkFactory {
 }
 
 class DropEnv(val local: LocalInfo, val sinks: SinkFactory, val lan: LanServer?) {
-    /** Move file data to Wi-Fi when both devices are on the same network. */
+    /** Move file data to Wi-Fi when both devices are on the same network, or can reach each other directly. */
     @Volatile
     var useLan = true
+
+    /** A router-free Wi-Fi link such as Wi-Fi Aware, if this device has one. */
+    @Volatile
+    var direct: DirectLink? = null
+}
+
+/**
+ * A router-free radio link set up on demand for one transfer, such as Wi-Fi Aware.
+ * The receiver's [LanServer] still accepts the connection and checks its one-time token, so this
+ * only has to deliver a byte stream between the two devices.
+ */
+interface DirectLink {
+    /**
+     * Receiver: get ready for the sender to connect to [lanPort] over this link.
+     * Returns what the sender needs to know (sent over the encrypted Bluetooth link), or null if the
+     * link isn't available right now. Must not block for long.
+     */
+    fun prepare(transferId: String, lanPort: Int): JSONObject?
+
+    /** Receiver: the transfer is over; tear down anything [prepare] set up. */
+    fun release(transferId: String)
+
+    /**
+     * Sender: open the link described by [info] and hand each candidate stream to [attach], which
+     * runs the handshake and returns a session if it reached the right device. Returns that session,
+     * or null if the link couldn't be set up. Blocks for at most a few seconds.
+     */
+    fun connect(info: JSONObject, attach: (Duplex) -> Session?, cancelled: () -> Boolean): Session?
 }
 
 enum class TransferState { WAITING, TRANSFERRING, DONE, DECLINED, CANCELLED, FAILED }
@@ -141,9 +169,9 @@ class OutgoingTransfer internal constructor(
         }
     }
 
-    internal fun onAccepted(lan: JSONObject?) {
+    internal fun onAccepted(lan: JSONObject?, direct: JSONObject?) {
         if (state != TransferState.WAITING) return
-        link.sendQueue.execute { run(lan) }
+        link.sendQueue.execute { run(lan, direct) }
     }
 
     internal fun onDeclined() {
@@ -168,6 +196,21 @@ class OutgoingTransfer internal constructor(
         if (linkLost && !overLan) throw IOException("Connection lost")
     }
 
+    /** Runs the handshake on a fresh fast connection and joins it to this transfer. */
+    private fun attach(duplex: Duplex, token: String): Session? = try {
+        duplex.setReadTimeout(8000)
+        val s = Session(duplex, link.env.local)
+        s.handshake()
+        if (s.peer.id != peer.id) throw ProtocolException("Wrong device")
+        s.send(Proto.ATTACH, JSONObject().put("tid", id).put("token", token))
+        duplex.setReadTimeout(0)
+        s
+    } catch (e: Exception) {
+        duplex.close()
+        null
+    }
+
+    /** Tries the receiver's addresses on the shared Wi-Fi network or hotspot. */
     private fun connectLan(lan: JSONObject): Session? {
         val port = lan.optInt("port")
         val token = lan.optString("token")
@@ -180,26 +223,37 @@ class OutgoingTransfer internal constructor(
             try {
                 sock.connect(InetSocketAddress(addr, port), 700)
                 sock.tcpNoDelay = true
-                sock.soTimeout = 8000
-                val s = Session(SocketDuplex(sock), link.env.local)
-                s.handshake()
-                if (s.peer.id != peer.id) throw ProtocolException("Wrong device")
-                s.send(Proto.ATTACH, JSONObject().put("tid", id).put("token", token))
-                sock.soTimeout = 0
-                return s
             } catch (e: Exception) {
                 try {
                     sock.close()
                 } catch (_: Exception) {
                 }
+                continue
             }
+            attach(SocketDuplex(sock), token)?.let { return it }
         }
         return null
     }
 
-    private fun run(lan: JSONObject?) {
+    /** Sets up a router-free link (Wi-Fi Aware) to the receiver. */
+    private fun connectDirect(lan: JSONObject, direct: JSONObject): Session? {
+        val token = lan.optString("token")
+        val d = link.env.direct ?: return null
+        if (token.isEmpty()) return null
+        return try {
+            d.connect(direct, { attach(it, token) }, { cancelRequested || remoteCancelled })
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun run(lan: JSONObject?, direct: JSONObject?) {
         if (isFinished) return
-        val ls = if (lan != null && link.env.useLan) connectLan(lan) else null
+        var ls: Session? = null
+        if (lan != null && link.env.useLan) {
+            ls = connectLan(lan)
+            if (ls == null && direct != null && !cancelRequested && !remoteCancelled) ls = connectDirect(lan, direct)
+        }
         val data = ls ?: link.session
         lanSession = ls
         viaLan = ls != null
@@ -287,6 +341,7 @@ class IncomingTransfer internal constructor(
     private var sink: FileSink? = null
     private var index = -1
     private var lanToken: String? = null
+    private var directPrepared = false
     private var lanSession: Session? = null
 
     @Synchronized
@@ -297,11 +352,18 @@ class IncomingTransfer internal constructor(
         val lan = link.env.lan
         if (lan != null && link.env.useLan && lan.port > 0 && items.isNotEmpty()) {
             val addrs = lan.addresses()
-            if (addrs.isNotEmpty()) {
+            val direct = try {
+                link.env.direct?.prepare(id, lan.port)
+            } catch (e: Exception) {
+                null
+            }
+            if (direct != null) directPrepared = true
+            if (addrs.isNotEmpty() || direct != null) {
                 val token = newToken()
                 lanToken = token
                 lan.register(token, this)
                 msg.put("lan", JSONObject().put("addrs", JSONArray(addrs)).put("port", lan.port).put("token", token))
+                if (direct != null) msg.put("direct", direct)
             }
         }
         link.trySend(Proto.ACCEPT, msg)
@@ -356,6 +418,11 @@ class IncomingTransfer internal constructor(
             lanSession?.close()
         }
         lanToken?.let { link.env.lan?.unregister(it) }
+        if (directPrepared) {
+            directPrepared = false
+            val d = link.env.direct
+            Thread { runCatching { d?.release(id) } }.start()
+        }
         return true
     }
 
@@ -404,4 +471,7 @@ class SocketDuplex(private val socket: Socket) : Duplex {
     override val input = socket.getInputStream().buffered(256 * 1024)
     override val output = socket.getOutputStream()
     override fun close() = socket.close()
+    override fun setReadTimeout(ms: Int) {
+        socket.soTimeout = ms
+    }
 }

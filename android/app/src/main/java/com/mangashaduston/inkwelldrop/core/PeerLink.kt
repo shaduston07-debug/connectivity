@@ -116,7 +116,7 @@ class PeerLink(
             }
             Proto.ACCEPT -> {
                 val j = f.json()
-                outgoing[j.optString("tid")]?.onAccepted(j.optJSONObject("lan"))
+                outgoing[j.optString("tid")]?.onAccepted(j.optJSONObject("lan"), j.optJSONObject("direct"))
             }
             Proto.DECLINE -> outgoing[f.json().optString("tid")]?.onDeclined()
             Proto.CANCEL -> {

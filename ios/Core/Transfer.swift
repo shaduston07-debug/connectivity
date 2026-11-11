@@ -40,14 +40,30 @@ public final class DropEnv {
     public let local: LocalInfo
     public let sinks: SinkFactory
     public let lan: LanServer?
-    /// Move file data to Wi-Fi when both devices are on the same network.
+    /// Move file data to Wi-Fi when both devices are on the same network, or can reach each other directly.
     public var useLan = true
+    /// A router-free Wi-Fi link such as Wi-Fi Aware, if this device has one.
+    public var direct: DirectLink?
 
     public init(local: LocalInfo, sinks: SinkFactory, lan: LanServer?) {
         self.local = local
         self.sinks = sinks
         self.lan = lan
     }
+}
+
+/// A router-free radio link set up on demand for one transfer, such as Wi-Fi Aware.
+/// The receiver's `LanServer` still checks the connection's one-time token, so this only has to
+/// deliver a byte stream between the two devices.
+public protocol DirectLink: AnyObject {
+    /// Receiver: get ready for the sender to connect. Returns what the sender needs to know (sent over
+    /// the encrypted Bluetooth link), or nil if the link isn't available right now. Must not block for long.
+    func prepare(transferId: String, lanPort: UInt16) -> [String: Any]?
+    /// Receiver: the transfer is over; tear down anything `prepare` set up.
+    func release(transferId: String)
+    /// Sender: open the link described by `info` and hand each candidate stream to `attach`, which runs
+    /// the handshake and returns a session if it reached the right device. Blocks for a few seconds at most.
+    func connect(info: [String: Any], attach: (Duplex) -> Session?, cancelled: () -> Bool) -> Session?
 }
 
 public enum TransferState: String {
@@ -158,10 +174,10 @@ public final class OutgoingTransfer: Transfer {
         }
     }
 
-    func onAccepted(_ lan: [String: Any]?) {
+    func onAccepted(_ lan: [String: Any]?, _ direct: [String: Any]?) {
         guard state == .waiting, let link = link else { return }
         // The closure holds the link, so it stays alive while sending.
-        link.sendQueue.async { [self] in run(lan, link) }
+        link.sendQueue.async { [self] in run(lan, direct, link) }
     }
 
     func onDeclined() { finish(.declined) }
@@ -183,30 +199,49 @@ public final class OutgoingTransfer: Transfer {
         if linkLost && !overLan { throw ProtocolError("Connection lost") }
     }
 
+    /// Runs the handshake on a fresh fast connection and joins it to this transfer.
+    private func attach(_ duplex: Duplex, token: String, _ link: PeerLink) -> Session? {
+        do {
+            duplex.setReadTimeout(seconds: 8)
+            let s = Session(duplex: duplex, local: link.env.local)
+            try s.handshake()
+            guard s.peer?.id == peer.id else { throw ProtocolError("Wrong device") }
+            try s.send(Proto.attach, json: ["tid": id, "token": token])
+            duplex.setReadTimeout(seconds: 0)
+            return s
+        } catch {
+            duplex.close()
+            return nil
+        }
+    }
+
+    /// Tries the receiver's addresses on the shared Wi-Fi network or hotspot.
     private func connectLan(_ lan: [String: Any], _ link: PeerLink) -> Session? {
         let port = lan.int("port")
         let token = lan.string("token")
         guard let addrs = lan["addrs"] as? [String], (1...65535).contains(port), !token.isEmpty else { return nil }
         for addr in addrs.prefix(4) {
             guard let sock = try? TcpSocket.connect(host: addr, port: UInt16(port), timeoutMs: 700) else { continue }
-            do {
-                sock.setReadTimeout(seconds: 8)
-                let s = Session(duplex: sock, local: link.env.local)
-                try s.handshake()
-                guard s.peer?.id == peer.id else { throw ProtocolError("Wrong device") }
-                try s.send(Proto.attach, json: ["tid": id, "token": token])
-                sock.setReadTimeout(seconds: 0)
-                return s
-            } catch {
-                sock.close()
-            }
+            if let s = attach(sock, token: token, link) { return s }
         }
         return nil
     }
 
-    private func run(_ lan: [String: Any]?, _ link: PeerLink) {
+    /// Sets up a router-free link (Wi-Fi Aware) to the receiver.
+    private func connectDirect(_ lan: [String: Any], _ direct: [String: Any], _ link: PeerLink) -> Session? {
+        let token = lan.string("token")
+        guard let d = link.env.direct, !token.isEmpty else { return nil }
+        return d.connect(info: direct, attach: { self.attach($0, token: token, link) },
+                         cancelled: { self.cancelRequested || self.remoteCancelled })
+    }
+
+    private func run(_ lan: [String: Any]?, _ direct: [String: Any]?, _ link: PeerLink) {
         if isFinished { return }
-        let ls = (lan != nil && link.env.useLan) ? connectLan(lan!, link) : nil
+        var ls: Session?
+        if let lan = lan, link.env.useLan {
+            ls = connectLan(lan, link)
+            if ls == nil, let direct = direct, !cancelRequested, !remoteCancelled { ls = connectDirect(lan, direct, link) }
+        }
         let data = ls ?? link.session
         let overLan = ls != nil
         lock.lock()
@@ -282,6 +317,7 @@ public final class IncomingTransfer: Transfer {
     private var sink: FileSink?
     private var index = -1
     private var lanToken: String?
+    private var directPrepared = false
     private var lanSession: Session?
     private var linkClosed = false
 
@@ -299,11 +335,14 @@ public final class IncomingTransfer: Transfer {
         var msg: [String: Any] = ["tid": id]
         if let lan = env.lan, env.useLan, lan.port > 0, !items.isEmpty {
             let addrs = lan.addresses()
-            if !addrs.isEmpty {
+            let direct = env.direct?.prepare(transferId: id, lanPort: lan.port)
+            if direct != nil { directPrepared = true }
+            if !addrs.isEmpty || direct != nil {
                 let token = CryptoUtil.randomHex(16)
                 lanToken = token
                 lan.register(token, self)
                 msg["lan"] = ["addrs": addrs, "port": Int(lan.port), "token": token] as [String: Any]
+                if let direct = direct { msg["direct"] = direct }
             }
         }
         link?.trySend(Proto.accept, msg)
@@ -362,6 +401,12 @@ public final class IncomingTransfer: Transfer {
             lanSession?.close()
         }
         if let t = lanToken { env.lan?.unregister(t) }
+        if directPrepared {
+            directPrepared = false
+            let d = env.direct
+            let tid = id
+            DispatchQueue.global().async { d?.release(transferId: tid) }
+        }
         return true
     }
 
