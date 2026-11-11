@@ -1,4 +1,4 @@
-# XcodeGen spec for the iOS app and its share extension.
+# XcodeGen spec for the iOS app, its share extension and its Control Center buttons.
 #   brew install xcodegen && xcodegen generate && open InkwellDrop.xcodeproj
 name: InkwellDrop
 options:
@@ -24,9 +24,12 @@ targets:
       - path: Shared
       - path: App
         excludes: ["Info.plist"]
+      - path: Controls/Intents
       - path: Assets.xcassets
     dependencies:
       - target: InkwellDropShare
+        embed: true
+      - target: InkwellDropControls
         embed: true
     settings:
       groups: [common]
@@ -46,6 +49,10 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSBluetoothAlwaysUsageDescription: Inkwell Drop uses Bluetooth to find nearby devices and send files to them.
         NSLocalNetworkUsageDescription: When both devices are on the same Wi-Fi network, Inkwell Drop sends over it because it is much faster than Bluetooth.
+        WiFiAwareServices:
+          _inkwelldrop._tcp:
+            Publishable: {}
+            Subscribable: {}
         NSPhotoLibraryAddUsageDescription: Inkwell Drop saves the photos and videos you receive to your library.
         # Lets Inkwell Drop keep looking for senders, and finish transfers, while it is in the background.
         UIBackgroundModes:
@@ -86,6 +93,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSBluetoothAlwaysUsageDescription: Inkwell Drop uses Bluetooth to find nearby devices and send files to them.
         NSLocalNetworkUsageDescription: When both devices are on the same Wi-Fi network, Inkwell Drop sends over it because it is much faster than Bluetooth.
+        WiFiAwareServices:
+          _inkwelldrop._tcp:
+            Publishable: {}
+            Subscribable: {}
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -97,3 +108,23 @@ targets:
               NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
               NSExtensionActivationSupportsWebPageWithMaxCount: 1
+  InkwellDropControls:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Controls
+    settings:
+      groups: [common]
+      base:
+        PRODUCT_NAME: InkwellDropControls
+        PRODUCT_BUNDLE_IDENTIFIER: com.mangashaduston.inkwelldrop.controls
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: Controls/Info.plist
+      properties:
+        CFBundleDisplayName: Inkwell Drop
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension

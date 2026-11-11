@@ -55,14 +55,18 @@ final class TransferModel: ObservableObject, Identifiable {
 
     var statusText: String {
         switch state {
-        case .waiting: return incoming ? (accepted ? "Connecting…" : "Waiting for you") : "Waiting…"
+        case .waiting: return incoming ? (accepted ? "Starting…" : "Waiting for you") : "Waiting for them to accept…"
         case .transferring:
-            let speed = bytesPerSecond > 0 ? " · \(formatBytes(bytesPerSecond))/s" : ""
-            return "\(formatBytes(bytesDone)) of \(formatBytes(totalBytes))\(speed) · \(viaLan ? "Wi-Fi" : "Bluetooth")"
+            var text = "\(Int(progress * 100))%"
+            if bytesPerSecond > 0 {
+                let left = Double(totalBytes - bytesDone) / Double(bytesPerSecond)
+                text += left < 60 ? " · a few seconds left" : " · about \(Int((left / 60).rounded(.up))) min left"
+            }
+            return text
         case .done: return incoming ? "Received" : "Sent"
-        case .declined: return "Declined"
-        case .cancelled: return error ?? "Cancelled"
-        case .failed: return error ?? "Failed"
+        case .declined: return "They said no"
+        case .cancelled: return error == nil ? "Cancelled" : "They cancelled"
+        case .failed: return "Didn't go through. Try again."
         }
     }
 }
@@ -164,8 +168,28 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         env.useLan = wifi
         self.env = env
         super.init()
+        setUpDirectLink()
         trustedCount = trusted.count
         loadHistory()
+    }
+
+    /// Devices paired for Wi-Fi Aware (iOS 26).
+    @Published private(set) var pairedDevices: [String] = []
+    /// This device and this copy of the app can use Wi-Fi Aware.
+    @Published private(set) var canPair = false
+
+    private func setUpDirectLink() {
+        #if canImport(WiFiAware)
+        if #available(iOS 26.0, *), AppleAware.isSupported {
+            let aware = AppleAware(lan: lan)
+            aware.onPairedChange = { [weak self] names in
+                DispatchQueue.main.async { self?.pairedDevices = names }
+            }
+            env.direct = aware
+            canPair = true
+            if !Engine.isExtension { aware.startListening() }
+        }
+        #endif
     }
 
     /// Turns Bluetooth on for Inkwell Drop. The first call shows the system's Bluetooth permission prompt.

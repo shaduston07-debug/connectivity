@@ -63,7 +63,7 @@ public protocol DirectLink: AnyObject {
     func release(transferId: String)
     /// Sender: open the link described by `info` and hand each candidate stream to `attach`, which runs
     /// the handshake and returns a session if it reached the right device. Blocks for a few seconds at most.
-    func connect(info: [String: Any], attach: (Duplex) -> Session?, cancelled: () -> Bool) -> Session?
+    func connect(info: [String: Any], attach: @escaping (Duplex) -> Session?, cancelled: @escaping () -> Bool) -> Session?
 }
 
 public enum TransferState: String {

@@ -51,8 +51,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Xcode version
-        run: xcodebuild -version
+      - name: Use the newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          # Wi-Fi Aware needs the iOS 26 SDK (Xcode 26). Without it the app still builds, minus that feature.
+          newest=$(ls -d /Applications/Xcode_*.app | grep -E 'Xcode_[0-9.]+\.app$' | sort -t_ -k2 -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcodebuild -version
 
       - name: Generate Xcode project
         working-directory: ios
@@ -75,6 +80,7 @@ jobs:
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           test -d build/Build/Products/Release-iphoneos/InkwellDrop.app/PlugIns/InkwellDropShare.appex
+          test -d build/Build/Products/Release-iphoneos/InkwellDrop.app/PlugIns/InkwellDropControls.appex
 
       - name: Show compile errors
         if: failure()
@@ -86,6 +92,13 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/InkwellDrop.app Payload/
+          # Ad-hoc sign with the entitlements, so tools that re-sign the app for your device can see
+          # which ones it asks for. Inner bundles first.
+          app=Payload/InkwellDrop.app
+          codesign --force --sign - --entitlements Entitlements/InkwellDropShare.entitlements "$app/PlugIns/InkwellDropShare.appex"
+          codesign --force --sign - "$app/PlugIns/InkwellDropControls.appex"
+          codesign --force --sign - --entitlements Entitlements/InkwellDrop.entitlements "$app"
+          codesign -d --entitlements - "$app" || true
           zip -qry "$GITHUB_WORKSPACE/InkwellDrop.ipa" Payload
           ls -la "$GITHUB_WORKSPACE/InkwellDrop.ipa"
 

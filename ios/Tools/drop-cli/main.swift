@@ -46,7 +46,7 @@ final class Peer: PeerLinkListener {
 final class LoopbackDirect: DirectLink {
     func prepare(transferId: String, lanPort: UInt16) -> [String: Any]? { ["kind": "loopback", "port": Int(lanPort)] }
     func release(transferId: String) {}
-    func connect(info: [String: Any], attach: (Duplex) -> Session?, cancelled: () -> Bool) -> Session? {
+    func connect(info: [String: Any], attach: @escaping (Duplex) -> Session?, cancelled: @escaping () -> Bool) -> Session? {
         guard info["kind"] as? String == "loopback", let port = info["port"] as? Int,
               let sock = try? TcpSocket.connect(host: "127.0.0.1", port: UInt16(port), timeoutMs: 2000) else { return nil }
         return attach(sock)

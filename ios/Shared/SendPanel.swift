@@ -45,13 +45,13 @@ struct PeerBubble: View {
 
     private var subtitle: String {
         switch state {
-        case nil: return peer.platform == "ios" ? "iPhone or iPad" : "Android"
+        case nil: return ""
         case .waiting: return "Waiting…"
-        case .transferring: return "\(Int(progress * 100))%" + (viaLan ? " · Wi-Fi" : "")
+        case .transferring: return "\(Int(progress * 100))%" + (viaLan ? " ⚡︎" : "")
         case .done: return "Sent"
-        case .declined: return "Declined"
+        case .declined: return "Said no"
         case .cancelled: return "Cancelled"
-        case .failed: return "Failed"
+        case .failed: return "Try again"
         }
     }
 }
@@ -121,7 +121,7 @@ struct SendPanel: View {
     @ViewBuilder private var content: some View {
         switch engine.bluetooth {
         case .denied:
-            message("Inkwell Drop isn't allowed to use Bluetooth", "Open Settings › Inkwell Drop and turn on Bluetooth.")
+            message("Inkwell Drop needs Bluetooth", "Open Settings › Inkwell Drop and allow Bluetooth.")
         case .off:
             message("Bluetooth is off", "Turn on Bluetooth in Control Centre to find nearby devices.")
         case .unsupported:
@@ -130,8 +130,8 @@ struct SendPanel: View {
             if engine.peers.isEmpty {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("Looking for nearby devices…").font(.subheadline)
-                    Text("The other device needs Inkwell Drop installed and Bluetooth on.\nOn an iPhone or iPad, open Inkwell Drop.")
+                    Text("Looking for people nearby…").font(.subheadline)
+                    Text("Make sure Inkwell Drop is open on the other device.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 24)
@@ -157,9 +157,9 @@ struct SendPanel: View {
                         if let active = sent.values.first(where: { $0.state == .transferring }) {
                             LiveStatus(transfer: active)
                         } else if let failed = sent.values.first(where: { $0.state == .failed }) {
-                            Text(failed.error ?? "Couldn't send.")
+                            Text("Didn't go through. Tap to try again.")
                         } else if sent.isEmpty {
-                            Text("Tap a device to send.")
+                            Text("Tap someone to send.")
                         } else {
                             Text(" ")
                         }

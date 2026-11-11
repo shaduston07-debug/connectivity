@@ -4,5 +4,6 @@
 DerivedData/
 Package.resolved
 .DS_Store
-App/Info.plist
-ShareExtension/Info.plist
+ios/App/Info.plist
+ios/ShareExtension/Info.plist
+ios/Controls/Info.plist

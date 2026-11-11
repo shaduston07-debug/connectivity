@@ -143,7 +143,10 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         deviceName = prefs.getString("name", null) ?: defaultName()
         local = LocalInfo(identity, deviceName, "android")
         lan = LanServer(local).apply { addressProvider = { wifiAddresses() } }
-        env = DropEnv(local, MediaStoreSinks(app), lan).apply { useLan = useWifi }
+        env = DropEnv(local, MediaStoreSinks(app), lan).apply {
+            useLan = useWifi
+            if (app.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE)) direct = AwareLink(app)
+        }
         loadHistory()
         ContextCompat.registerReceiver(app, object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) = refresh()

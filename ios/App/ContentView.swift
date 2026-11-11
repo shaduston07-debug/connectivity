@@ -32,33 +32,50 @@ private struct Outgoing: Identifiable {
 
 struct ContentView: View {
     @ObservedObject private var engine = Engine.shared
+    @ObservedObject private var router = ControlRouter.shared
 
     @State private var picked: [PhotosPickerItem] = []
+    @State private var pickingPhotos = false
     @State private var outgoing: Outgoing?
     @State private var importingFiles = false
     @State private var scopedURLs: [URL] = []
     @State private var writingText = false
     @State private var draft = ""
-    @State private var renaming = false
-    @State private var nameDraft = ""
+    @State private var showingSettings = false
     @State private var preview: URL?
 
     var body: some View {
         NavigationStack {
-            List {
-                statusSection
-                sendSection
-                activeSection
-                recentSection
-                settingsSection
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    ReadyCard(engine: engine)
+                    sendRow
+                    activeSection
+                    recentSection
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Inkwell Drop")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
         }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(item: $outgoing, onDismiss: releaseFiles) { item in
             SendPanel(payload: item.payload, problem: item.problem) { outgoing = nil }
                 .presentationDetents([.height(340)])
                 .presentationDragIndicator(.visible)
         }
+        .photosPicker(isPresented: $pickingPhotos, selection: $picked, maxSelectionCount: 50,
+                      matching: .any(of: [.images, .videos]))
         .fileImporter(isPresented: $importingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result, !urls.isEmpty else { return }
             scopedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
@@ -70,28 +87,75 @@ struct ContentView: View {
             picked = []
             loadPhotos(items)
         }
-        .alert("Send text or a link", isPresented: $writingText) {
-            TextField("Text", text: $draft)
-            Button("Choose Device") {
+        .alert("Send a message or link", isPresented: $writingText) {
+            TextField("Type or paste here", text: $draft)
+            Button("Next") {
                 let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty { outgoing = Outgoing(payload: Payload(text: text)) }
             }
             Button("Cancel", role: .cancel) {}
         }
-        .alert("Name", isPresented: $renaming) {
-            TextField("Shown to nearby devices", text: $nameDraft)
-            Button("Save") { engine.rename(nameDraft) }
-            Button("Cancel", role: .cancel) {}
-        }
         .alert(offerTitle, isPresented: offerShown, presenting: engine.pendingOffer) { offer in
             Button("Accept") { engine.accept(offer, always: false) }
-            Button("Always Accept from This Device") { engine.accept(offer, always: true) }
+            Button("Always Accept from \(offer.peerName)") { engine.accept(offer, always: true) }
             Button("Decline", role: .cancel) { engine.decline(offer) }
         } message: { offer in
-            Text(offer.transfer.text ?? "\(formatBytes(offer.totalBytes)). Photos and videos are saved to Photos, other files to the Files app.")
+            Text(offer.transfer.text ?? formatBytes(offer.totalBytes))
         }
         .quickLookPreview($preview)
-        .onAppear { engine.requestNotificationPermission() }
+        .onAppear {
+            engine.requestNotificationPermission()
+            handle(router.pending)
+        }
+        .onReceive(router.$pending) { handle($0) }
+    }
+
+    // MARK: Sections
+
+    private var sendRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Send").font(.title3.weight(.semibold))
+            HStack(spacing: 12) {
+                SendTile(title: "Photos", symbol: "photo.on.rectangle.angled", tint: .blue) { pickingPhotos = true }
+                SendTile(title: "Files", symbol: "folder.fill", tint: .orange) { importingFiles = true }
+                SendTile(title: "Message", symbol: "text.bubble.fill", tint: .green) {
+                    draft = ""
+                    writingText = true
+                }
+            }
+            Text("Or tap Share in any app and choose Inkwell Drop.")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var activeSection: some View {
+        let active = engine.transfers.filter { $0.isActive && ($0.accepted || !$0.incoming) }
+        if !active.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Now").font(.title3.weight(.semibold))
+                ForEach(active) { ActiveCard(transfer: $0) }
+            }
+        }
+    }
+
+    @ViewBuilder private var recentSection: some View {
+        if !engine.history.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Recent").font(.title3.weight(.semibold))
+                    Spacer()
+                    Button("Clear") { engine.clearHistory() }.font(.subheadline)
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(engine.history.prefix(20).enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Divider().padding(.leading, 60) }
+                        Button { open(item) } label: { HistoryRow(item: item) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
     }
 
     private var offerTitle: String {
@@ -103,129 +167,17 @@ struct ContentView: View {
         Binding(get: { engine.pendingOffer != nil }, set: { _ in })
     }
 
-    // MARK: Sections
-
-    private var statusSection: some View {
-        Section {
-            switch engine.bluetooth {
-            case .denied:
-                notice("Inkwell Drop isn't allowed to use Bluetooth", "Turn on Bluetooth for Inkwell Drop in Settings.", "Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                }
-            case .off:
-                notice("Bluetooth is off", "Turn on Bluetooth in Control Centre or Settings to send and receive.", nil) {}
-            case .unsupported:
-                notice("Bluetooth isn't available", "This device can't use Bluetooth LE.", nil) {}
-            default:
-                HStack(spacing: 14) {
-                    Image(systemName: "dot.radiowaves.left.and.right").font(.title2).foregroundStyle(Color.accentColor)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ready to receive").font(.headline)
-                        Text("Nearby devices see this one as “\(engine.deviceName)” while Inkwell Drop is open.")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-        }
-    }
-
-    private func notice(_ title: String, _ detail: String, _ button: String?, action: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: "exclamationmark.triangle.fill").font(.headline).foregroundStyle(.orange)
-            Text(detail).font(.footnote).foregroundStyle(.secondary)
-            if let button = button { Button(button, action: action).padding(.top, 2) }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var sendSection: some View {
-        Section {
-            PhotosPicker(selection: $picked, maxSelectionCount: 50, matching: .any(of: [.images, .videos])) {
-                Label("Photos and Videos", systemImage: "photo.on.rectangle")
-            }
-            Button { importingFiles = true } label: { Label("Files", systemImage: "folder") }
-            Button {
-                draft = ""
-                writingText = true
-            } label: { Label("Text or Link", systemImage: "text.bubble") }
-        } header: {
-            Text("Send")
-        } footer: {
-            Text("You can also tap Share in any app and choose Inkwell Drop.")
-        }
-    }
-
-    @ViewBuilder private var activeSection: some View {
-        let active = engine.transfers.filter { $0.isActive && ($0.accepted || !$0.incoming) }
-        if !active.isEmpty {
-            Section("In Progress") {
-                ForEach(active) { ActiveRow(transfer: $0) }
-            }
-        }
-    }
-
-    @ViewBuilder private var recentSection: some View {
-        if !engine.history.isEmpty {
-            Section("Recent") {
-                ForEach(engine.history.prefix(30)) { item in
-                    Button { open(item) } label: { historyRow(item) }
-                        .buttonStyle(.plain)
-                }
-                Button("Clear List", role: .destructive) { engine.clearHistory() }
-            }
-        }
-    }
-
-    private func historyRow(_ item: HistoryItem) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.text ?? item.summary).lineLimit(2)
-                Text("\(item.incoming ? "From" : "Sent to") \(item.peerName) · \(item.time.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.footnote).foregroundStyle(.secondary)
-                if item.photosSaved > 0 {
-                    Text("Saved to Photos").font(.footnote).foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if let label = actionLabel(item) {
-                Text(label).font(.subheadline).foregroundStyle(Color.accentColor)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func actionLabel(_ item: HistoryItem) -> String? {
-        guard item.incoming else { return nil }
-        if let text = item.text { return text.hasPrefix("http://") || text.hasPrefix("https://") ? "Open" : "Copy" }
-        if !item.files.isEmpty { return "Open" }
-        return item.photosSaved > 0 ? "Photos" : nil
-    }
-
-    private var settingsSection: some View {
-        Section {
-            Button {
-                nameDraft = engine.deviceName
-                renaming = true
-            } label: {
-                HStack {
-                    Text("Name").foregroundStyle(.primary)
-                    Spacer()
-                    Text(engine.deviceName).foregroundStyle(.secondary)
-                }
-            }
-            Toggle("Use Wi-Fi When Available", isOn: Binding(get: { engine.useWifi }, set: { engine.setUseWifi($0) }))
-            if engine.trustedCount > 0 {
-                Button("Stop Always Accepting (\(engine.trustedCount))", role: .destructive) { engine.forgetTrusted() }
-            }
-        } header: {
-            Text("Settings")
-        } footer: {
-            Text("When both devices are on the same Wi-Fi network, Inkwell Drop sends over it, which is much faster for videos and large files. No Wi-Fi around? Turn on one phone’s hotspot and connect the other to it. Otherwise everything goes over Bluetooth.")
-        }
-    }
-
     // MARK: Actions
+
+    private func handle(_ action: ControlAction?) {
+        guard let action = action else { return }
+        router.pending = nil
+        switch action {
+        case .receive: break // the app is open, so this device can be found
+        case .sendPhotos: pickingPhotos = true
+        case .sendFiles: importingFiles = true
+        }
+    }
 
     private func loadPhotos(_ items: [PhotosPickerItem]) {
         let sheet = Outgoing()
@@ -241,7 +193,7 @@ struct ContentView: View {
             await MainActor.run {
                 guard outgoing?.id == sheet.id else { return } // the sheet was closed while loading
                 var updated = sheet
-                if loaded.isEmpty { updated.problem = "Those items couldn't be read." } else { updated.payload = Payload(sources: loaded) }
+                if loaded.isEmpty { updated.problem = "Those items couldn't be opened." } else { updated.payload = Payload(sources: loaded) }
                 outgoing = updated
             }
         }
@@ -256,7 +208,8 @@ struct ContentView: View {
     private func open(_ item: HistoryItem) {
         guard item.incoming else { return }
         if let text = item.text {
-            if text.hasPrefix("http://") || text.hasPrefix("https://"), let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            if text.hasPrefix("http://") || text.hasPrefix("https://"),
+               let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
                 UIApplication.shared.open(url)
             } else {
                 UIPasteboard.general.string = text
@@ -270,25 +223,161 @@ struct ContentView: View {
     }
 }
 
-private struct ActiveRow: View {
+// MARK: - Pieces
+
+/// The card at the top: is this device ready, and what do others see it as.
+private struct ReadyCard: View {
+    @ObservedObject var engine: Engine
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                if engine.bluetooth == .on {
+                    Circle().fill(Color.accentColor.opacity(0.18))
+                        .frame(width: 56, height: 56)
+                        .scaleEffect(pulse ? 1.25 : 0.9)
+                        .opacity(pulse ? 0 : 1)
+                        .animation(.easeOut(duration: 1.8).repeatForever(autoreverses: false), value: pulse)
+                }
+                Circle().fill(iconColor.opacity(0.15)).frame(width: 56, height: 56)
+                Image(systemName: icon).font(.title2.weight(.semibold)).foregroundStyle(iconColor)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                if engine.bluetooth == .denied {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.top, 2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .onAppear { pulse = true }
+    }
+
+    private var icon: String {
+        switch engine.bluetooth {
+        case .on, .unknown: return "dot.radiowaves.left.and.right"
+        default: return "exclamationmark"
+        }
+    }
+
+    private var iconColor: Color { engine.bluetooth == .on || engine.bluetooth == .unknown ? .accentColor : .orange }
+
+    private var title: String {
+        switch engine.bluetooth {
+        case .on, .unknown: return "Ready"
+        case .off: return "Bluetooth is off"
+        case .denied: return "Inkwell Drop needs Bluetooth"
+        case .unsupported: return "Not available on this device"
+        }
+    }
+
+    private var detail: String {
+        switch engine.bluetooth {
+        case .on, .unknown: return "Nearby people see you as “\(engine.deviceName)”"
+        case .off: return "Turn it on in Control Center to send and receive."
+        case .denied: return "Allow Bluetooth so nearby devices can find you."
+        case .unsupported: return "This device can't use Bluetooth Low Energy."
+        }
+    }
+}
+
+private struct SendTile: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 48, height: 48)
+                    .background(tint.opacity(0.14), in: Circle())
+                Text(title).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ActiveCard: View {
     @ObservedObject var transfer: TransferModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(transfer.incoming ? "From" : "To") \(transfer.peerName): \(transfer.summary)").lineLimit(1)
-                    Text(transfer.statusText).font(.footnote).foregroundStyle(.secondary)
+                    Text(transfer.summary).font(.body.weight(.medium)).lineLimit(1)
+                    Text("\(transfer.incoming ? "From" : "To") \(transfer.peerName)")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Cancel") { Engine.shared.cancel(transfer) }.buttonStyle(.borderless)
+                Button("Stop") { Engine.shared.cancel(transfer) }
+                    .font(.subheadline)
+                    .buttonStyle(.borderless)
             }
             if transfer.state == .transferring {
-                ProgressView(value: transfer.progress)
+                ProgressView(value: transfer.progress).tint(.accentColor)
             } else {
-                ProgressView().frame(maxWidth: .infinity, alignment: .leading)
+                ProgressView(value: 0).tint(.accentColor)
+            }
+            HStack(spacing: 6) {
+                if transfer.viaLan && transfer.state == .transferring {
+                    Label("Fast", systemImage: "bolt.fill").labelStyle(.titleAndIcon).foregroundStyle(.green)
+                }
+                Text(transfer.statusText).foregroundStyle(.secondary)
+            }
+            .font(.caption)
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct HistoryRow: View {
+    let item: HistoryItem
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(item.incoming ? Color.accentColor : .secondary)
+                .frame(width: 34, height: 34)
+                .background((item.incoming ? Color.accentColor : Color.secondary).opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.text ?? item.summary).lineLimit(1)
+                Text("\(item.incoming ? "From" : "To") \(item.peerName) · \(item.time.formatted(.relative(presentation: .named)))")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if item.incoming {
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+    }
+
+    private var symbol: String {
+        if let text = item.text {
+            return text.hasPrefix("http://") || text.hasPrefix("https://") ? "link" : "text.bubble"
+        }
+        if item.photosSaved > 0 || item.summary.contains("photo") { return "photo" }
+        if item.summary.contains("video") { return "video" }
+        return item.incoming ? "arrow.down.doc" : "arrow.up.doc"
     }
 }
