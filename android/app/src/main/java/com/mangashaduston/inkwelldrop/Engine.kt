@@ -34,6 +34,7 @@ import com.mangashaduston.inkwelldrop.core.TransferState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.Inet4Address
+import java.net.NetworkInterface
 import kotlin.concurrent.thread
 
 class PeerModel(val id: String, val name: String, val platform: String)
@@ -99,6 +100,8 @@ class HistoryItem(
 }
 
 /** Owns the Bluetooth transport, the open connections and every transfer. One per process. */
+private val NOT_WIFI = listOf("rmnet", "ccmni", "pdp", "tun", "ppp", "dummy", "v4-", "clat", "ipsec", "wwan")
+
 class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listener {
     private val prefs = app.getSharedPreferences("drop", Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
@@ -152,20 +155,37 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         Settings.Global.getString(app.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() }
             ?: Build.MODEL ?: "Android"
 
-    /** The address of this device on Wi-Fi, if it is connected to one. */
+    /**
+     * This device's addresses on Wi-Fi: the network it has joined, and its own hotspot if that is on.
+     * A phone connected to the other phone's hotspot counts as being on the same network.
+     */
     private fun wifiAddresses(): List<String> {
-        val cm = app.getSystemService(ConnectivityManager::class.java) ?: return emptyList()
-        val out = ArrayList<String>()
-        for (network in cm.allNetworks) {
-            val caps = cm.getNetworkCapabilities(network) ?: continue
-            if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) && !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) continue
-            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
-            for (la in cm.getLinkProperties(network)?.linkAddresses ?: emptyList()) {
-                val a = la.address
-                if (a is Inet4Address && a.isSiteLocalAddress) a.hostAddress?.let(out::add)
+        val out = LinkedHashSet<String>()
+        val cm = app.getSystemService(ConnectivityManager::class.java)
+        if (cm != null) {
+            for (network in cm.allNetworks) {
+                val caps = cm.getNetworkCapabilities(network) ?: continue
+                if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) && !caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) continue
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
+                for (la in cm.getLinkProperties(network)?.linkAddresses ?: emptyList()) {
+                    val a = la.address
+                    if (a is Inet4Address && a.isSiteLocalAddress) a.hostAddress?.let(out::add)
+                }
             }
         }
-        return out
+        // The hotspot this phone is hosting isn't a "network" to ConnectivityManager, so look at the
+        // interfaces too, leaving out mobile data and VPNs.
+        try {
+            for (nif in NetworkInterface.getNetworkInterfaces()) {
+                val name = nif.name.lowercase()
+                if (!nif.isUp || nif.isLoopback || NOT_WIFI.any { name.startsWith(it) }) continue
+                for (a in nif.inetAddresses) {
+                    if (a is Inet4Address && a.isSiteLocalAddress) a.hostAddress?.let(out::add)
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return out.toList()
     }
 
     // ---- Settings ----

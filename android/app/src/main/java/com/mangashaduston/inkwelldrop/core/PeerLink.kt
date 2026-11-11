@@ -195,7 +195,7 @@ class LanServer(private val local: LocalInfo) {
     }
 
     fun addresses(): List<String> = try {
-        addressProvider().take(3)
+        addressProvider().take(4)
     } catch (e: Exception) {
         emptyList()
     }

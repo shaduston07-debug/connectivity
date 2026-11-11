@@ -4,7 +4,8 @@ Inkwell Drop sends photos, videos, files, links and text between Apple and Andro
 
 - **In the share sheet.** Tap Share in any app, pick Inkwell Drop, tap a device. The transfer runs inside the share sheet, with a progress ring on the device, and the sheet closes when it is done.
 - **Bluetooth only.** Devices find each other and transfer over Bluetooth LE. Wi-Fi can be off.
-- **Faster on Wi-Fi, automatically.** If both devices happen to be on the same Wi-Fi network, the file data moves to it without anyone doing anything. If not, it stays on Bluetooth.
+- **Faster on Wi-Fi, automatically.** If both devices are on the same Wi-Fi network, the file data moves to it without anyone doing anything. If not, it stays on Bluetooth.
+- **Fast anywhere with a hotspot.** No Wi-Fi around? Turn on one phone's hotspot and connect the other phone to it. That counts as the same network, so transfers run at Wi-Fi speed with no router and no mobile data used. Phones remember each other's hotspot, so after the first time it is one switch.
 - **Android receives at any time.** A small background service keeps the phone visible, and offers arrive as a notification with Accept and Decline.
 - **Always accept.** Tick "Always accept from this device" once and later transfers from that device start by themselves.
 - **Saved where you expect.** Photos and videos go to the gallery / Photos. Other files go to Downloads (Android) or the Files app (iOS).
@@ -35,7 +36,8 @@ Neither system lets an app choose its own position, but you can pin it:
 
 ## Limits you should know about
 
-- **Bluetooth is slow for big files.** Expect very roughly 50–150 KB per second: a photo takes a few seconds, a one-minute video takes minutes. This is the ceiling of what iOS allows. AirDrop is fast because it switches to a private Wi-Fi link that Apple does not open to other apps or to Android. Being on the same Wi-Fi network removes the limit.
+- **Bluetooth is slow for big files.** Expect very roughly 50–150 KB per second: a photo takes a few seconds, a one-minute video takes minutes. This is the ceiling of what iOS allows. AirDrop is fast because it switches to a private Wi-Fi link that Apple does not open to other apps or to Android. Being on the same Wi-Fi network, or connecting one phone to the other's hotspot, removes the limit.
+- **A faster direct link exists but isn't built yet.** iOS 26 added Wi-Fi Aware, a router-free Wi-Fi link that also works with Android. It needs iOS 26, a one-time pairing between the two devices, and an app signed with Apple's Wi-Fi Aware entitlement, which an unsigned sideloaded build doesn't carry.
 - **The first Wi-Fi transfer on iOS may fall back to Bluetooth**, because iOS shows its "find devices on your local network" question at that moment. Allow it and the next transfer uses Wi-Fi.
 - **The iOS share sheet shows up as "iPhone" or "iPad".** The name you set in the app applies to the app. iOS does not share settings between an app and its share extension unless the build is signed with an App Group.
 - **Not yet run on real hardware.** The transfer engine is tested on every build, including the Android (Kotlin) and iOS (Swift) implementations talking to each other. The Bluetooth layers compile and follow each platform's documented behaviour, but were written without phones to try them on. If two devices don't find each other, that is the place to look.

@@ -180,6 +180,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         ble.onStateChange = { [weak self] in DispatchQueue.main.async { self?.refresh() } }
         if !Engine.isExtension {
             lan?.start()
+            askForLocalNetwork()
             let center = UNUserNotificationCenter.current()
             center.delegate = self
             center.setNotificationCategories([
@@ -190,6 +191,20 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
             ])
         }
         refresh()
+    }
+
+    /// iOS only asks "allow Inkwell Drop to find devices on your local network?" when the app first
+    /// reaches out to one, and until then it silently blocks incoming Wi-Fi transfers. Reaching out
+    /// once at launch gets the question asked before it matters.
+    private func askForLocalNetwork() {
+        guard useWifi else { return }
+        DispatchQueue.global(qos: .utility).async {
+            guard let mine = TcpSocket.wifiAddresses().first else { return }
+            var parts = mine.split(separator: ".").map(String.init)
+            guard parts.count == 4 else { return }
+            parts[3] = parts[3] == "1" ? "2" : "1"
+            _ = try? TcpSocket.connect(host: parts.joined(separator: "."), port: 9, timeoutMs: 300)
+        }
     }
 
     // MARK: Settings

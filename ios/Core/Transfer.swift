@@ -187,7 +187,7 @@ public final class OutgoingTransfer: Transfer {
         let port = lan.int("port")
         let token = lan.string("token")
         guard let addrs = lan["addrs"] as? [String], (1...65535).contains(port), !token.isEmpty else { return nil }
-        for addr in addrs.prefix(3) {
+        for addr in addrs.prefix(4) {
             guard let sock = try? TcpSocket.connect(host: addr, port: UInt16(port), timeoutMs: 700) else { continue }
             do {
                 sock.setReadTimeout(seconds: 8)

@@ -196,7 +196,7 @@ public final class LanServer {
         server = nil
     }
 
-    public func addresses() -> [String] { Array(addressProvider().prefix(3)) }
+    public func addresses() -> [String] { Array(addressProvider().prefix(4)) }
 
     func register(_ token: String, _ t: IncomingTransfer) {
         lock.lock()

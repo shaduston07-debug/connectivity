@@ -98,6 +98,16 @@ class BleTransport(private val ctx: Context, private val listener: Listener) {
                 }
             }
             val server = manager.openGattServer(ctx, object : BluetoothGattServerCallback() {
+                override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+                    // Ask for the faster 2M radio mode when another device connects to us.
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        try {
+                            gattServer?.setPreferredPhy(device, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_LE_2M_MASK, BluetoothDevice.PHY_OPTION_NO_PREFERRED)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+
                 override fun onCharacteristicReadRequest(
                     device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic,
                 ) {

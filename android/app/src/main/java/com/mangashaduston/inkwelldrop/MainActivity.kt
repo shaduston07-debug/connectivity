@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
                 Column(Modifier.weight(1f)) {
                     Text("Use Wi-Fi when both devices are on the same network")
                     Text(
-                        "Much faster for videos and large files. Bluetooth is always used when Wi-Fi isn't available.",
+                        "Much faster for videos and large files. No Wi-Fi around? Turn on one phone's hotspot and connect the other to it. Bluetooth is used when neither is available.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

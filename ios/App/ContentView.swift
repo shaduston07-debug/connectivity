@@ -221,7 +221,7 @@ struct ContentView: View {
         } header: {
             Text("Settings")
         } footer: {
-            Text("When both devices are on the same Wi-Fi network, Inkwell Drop sends over it, which is much faster for videos and large files. Otherwise everything goes over Bluetooth.")
+            Text("When both devices are on the same Wi-Fi network, Inkwell Drop sends over it, which is much faster for videos and large files. No Wi-Fi around? Turn on one phone’s hotspot and connect the other to it. Otherwise everything goes over Bluetooth.")
         }
     }
 

@@ -122,7 +122,8 @@ public final class TcpSocket: Duplex {
             guard flags & Int32(IFF_UP) != 0, flags & Int32(IFF_LOOPBACK) == 0 else { continue }
             let name = String(cString: ifa.pointee.ifa_name)
             #if os(iOS)
-            guard name.hasPrefix("en") else { continue } // en0 is Wi-Fi; skips cellular and VPN
+            // en0 is Wi-Fi. bridge100 is this device's own Personal Hotspot. Skips cellular and VPN.
+            guard name.hasPrefix("en") || name.hasPrefix("bridge") else { continue }
             #endif
             _ = name
             let addr = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }

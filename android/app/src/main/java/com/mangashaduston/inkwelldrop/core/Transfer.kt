@@ -173,7 +173,7 @@ class OutgoingTransfer internal constructor(
         val token = lan.optString("token")
         val addrs = lan.optJSONArray("addrs") ?: return null
         if (port !in 1..65535 || token.isEmpty()) return null
-        for (i in 0 until minOf(addrs.length(), 3)) {
+        for (i in 0 until minOf(addrs.length(), 4)) {
             val addr = addrs.optString(i)
             if (!IPV4.matches(addr)) continue
             val sock = Socket()
