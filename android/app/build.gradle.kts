@@ -49,6 +49,8 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
+            // A stuck test should fail the build, not hold it up for hours.
+            it.timeout.set(java.time.Duration.ofMinutes(20))
             it.testLogging { events("passed", "failed", "skipped") }
             // Robolectric downloads a simulated Android at test time. Google's mirror of Maven Central
             // doesn't rate-limit shared build machines the way the main site does.

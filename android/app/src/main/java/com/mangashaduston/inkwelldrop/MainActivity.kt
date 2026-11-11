@@ -261,15 +261,11 @@ class MainActivity : ComponentActivity() {
     private fun ReadyCard(e: Engine, onAllow: () -> Unit, onTurnOnBluetooth: () -> Unit) {
         val ok = e.hasPermissions && e.bluetoothOn
         val ready = ok && e.receiving
-        val pulse = rememberInfiniteTransition(label = "pulse")
-        val p by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "p")
         val accent = if (ok) MaterialTheme.colorScheme.primary else Color(0xFFF59E0B)
         Card {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(18.dp)) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(60.dp)) {
-                    if (ready) {
-                        Box(Modifier.size(56.dp).scale(0.9f + 0.4f * p).alpha(1f - p).clip(CircleShape).background(accent.copy(alpha = 0.25f)))
-                    }
+                    if (ready) Pulse(accent)
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp).clip(CircleShape).background(accent.copy(alpha = 0.15f))) {
                         Icon(painterResource(R.drawable.ic_drop), contentDescription = null, tint = accent, modifier = Modifier.size(30.dp))
                     }
@@ -302,6 +298,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A ring that grows and fades behind the icon while this phone is ready to receive. */
+    @Composable
+    private fun Pulse(color: Color) {
+        // Only composed while ready, so the never-ending animation doesn't run otherwise.
+        val pulse = rememberInfiniteTransition(label = "pulse")
+        val p by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "p")
+        Box(Modifier.size(56.dp).scale(0.9f + 0.4f * p).alpha(1f - p).clip(CircleShape).background(color.copy(alpha = 0.25f)))
     }
 
     @Composable
