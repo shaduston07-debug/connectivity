@@ -12,7 +12,7 @@ Inkwell Drop sends photos, videos, files, links and text between Apple and Andro
 
 ## Install
 
-Every push builds both apps. Download them from the [latest release](../../releases/tag/latest).
+Every push builds both apps. Download them from the [latest release](https://github.com/shaduston07-debug/connectivity/releases/tag/latest).
 
 **Android (12 or later):** open `InkwellDrop.apk` on the phone and install it. Open Inkwell Drop once and allow *Nearby devices* and *Notifications*.
 
