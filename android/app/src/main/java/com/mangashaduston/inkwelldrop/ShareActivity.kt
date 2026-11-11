@@ -140,6 +140,7 @@ class ShareActivity : ComponentActivity() {
             return
         }
         if (existing?.state == TransferState.DONE) return
+        // Tapping again after a failure or a "no" tries again.
         engine.send(peer.id, p.sources, p.text) { m -> if (m != null) sent[peer.id] = m }
     }
 
@@ -184,10 +185,10 @@ class ShareActivity : ComponentActivity() {
             Spacer(Modifier.height(16.dp))
             when {
                 !e.hasPermissions -> {
-                    Text("Inkwell Drop needs the Nearby devices permission to find other devices over Bluetooth.", textAlign = TextAlign.Center)
+                    Text("Allow Inkwell Drop to find people nearby.", textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = {
-                        permissions.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT))
+                        permissions.launch(e.wantedPermissions())
                     }) { Text("Allow") }
                 }
                 !e.bluetoothOn -> {
@@ -201,7 +202,7 @@ class ShareActivity : ComponentActivity() {
                             CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "Looking for nearby devices…\nOn an iPhone or iPad, open Inkwell Drop.",
+                                "Looking for people nearby…\nMake sure Inkwell Drop is open on their phone.",
                                 style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -222,8 +223,8 @@ class ShareActivity : ComponentActivity() {
                     Text(
                         when {
                             active != null -> statusText(active)
-                            failed != null -> failed.error ?: "Couldn't send."
-                            sent.isEmpty() -> "Tap a device to send."
+                            failed != null -> "Didn't go through. Tap to try again."
+                            sent.isEmpty() -> "Tap someone to send."
                             else -> ""
                         },
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

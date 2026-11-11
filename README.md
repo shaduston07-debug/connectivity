@@ -4,8 +4,7 @@ Inkwell Drop sends photos, videos, files, links and text between Apple and Andro
 
 - **In the share sheet.** Tap Share in any app, pick Inkwell Drop, tap a device. The transfer runs inside the share sheet, with a progress ring on the device, and the sheet closes when it is done.
 - **Bluetooth only.** Devices find each other and transfer over Bluetooth LE. Wi-Fi can be off.
-- **Faster on Wi-Fi, automatically.** If both devices are on the same Wi-Fi network, the file data moves to it without anyone doing anything. If not, it stays on Bluetooth.
-- **Fast anywhere with a hotspot.** No Wi-Fi around? Turn on one phone's hotspot and connect the other phone to it. That counts as the same network, so transfers run at Wi-Fi speed with no router and no mobile data used. Phones remember each other's hotspot, so after the first time it is one switch.
+- **Fast without a Wi-Fi network.** File data moves off Bluetooth onto Wi-Fi on its own whenever it can (see *How fast is it?*). No setup for the shared-network and hotspot cases, and nothing goes over the internet.
 - **Android receives at any time.** A small background service keeps the phone visible, and offers arrive as a notification with Accept and Decline.
 - **Always accept.** Tick "Always accept from this device" once and later transfers from that device start by themselves.
 - **Saved where you expect.** Photos and videos go to the gallery / Photos. Other files go to Downloads (Android) or the Files app (iOS).
@@ -18,6 +17,29 @@ Every push builds both apps. Download them from the [latest release](../../relea
 **Android (12 or later):** open `InkwellDrop.apk` on the phone and install it. Open Inkwell Drop once and allow *Nearby devices* and *Notifications*.
 
 **iPhone / iPad (iOS 16 or later):** `InkwellDrop.ipa` is unsigned, because iOS only installs apps signed for your device. Install it with SideStore, AltStore or Sideloadly (a free Apple ID works, with a refresh every 7 days), or build it in Xcode with your own team. Open Inkwell Drop once and allow Bluetooth.
+
+## How fast is it?
+
+Every transfer starts over Bluetooth, then moves to the fastest link the two devices can use:
+
+| Link | Works between | Setup | Speed |
+|---|---|---|---|
+| Same Wi-Fi network | any two devices | none | fast |
+| One phone joins the other's hotspot | any two devices | turn on a hotspot | fast |
+| Wi-Fi Aware, direct phone-to-phone Wi-Fi | two Android phones (Android 13+, Wi-Fi switched on) | none | fast |
+| Wi-Fi Aware, direct device-to-device Wi-Fi | two iPhones or iPads (iOS 26, iPhone 12 or newer) | pair once in Settings | fast |
+| Bluetooth | any two devices | none | slow for large files |
+
+The progress card shows ⚡ Fast when a transfer is on one of the Wi-Fi links.
+
+Wi-Fi Aware between an iPhone and an Android phone isn't supported yet: Apple only allows it with paired devices, and pairing with Android needs Wi-Fi Aware 4.0 support that few Android phones have. Between an iPhone and an Android phone, use the same Wi-Fi or a hotspot for speed.
+
+On iPhone, Wi-Fi Aware needs Apple's Wi-Fi Aware entitlement. The IPA asks for it, but whether you get it depends on how you install the app: a free Apple ID probably won't include it, a paid developer account can. Without it, the "Fast anywhere" pairing section just won't work, and everything else does.
+
+## Control Center and Quick Settings
+
+- **iPhone / iPad (iOS 18+):** open Control Center, touch and hold an empty spot, tap **Add a Control** and search "Inkwell". There are buttons to receive, send photos and send files. They can also go on the Lock Screen or the Action button.
+- **Android:** in Inkwell Drop open Settings and tap **Add** next to *Quick Settings tile* (Android 13+), or add it yourself from the Quick Settings editor. Tap the tile to turn receiving on or off; touch and hold it to open the app.
 
 ## Put Inkwell Drop at the front of the share sheet
 
@@ -36,9 +58,8 @@ Neither system lets an app choose its own position, but you can pin it:
 
 ## Limits you should know about
 
-- **Bluetooth is slow for big files.** Expect very roughly 50–150 KB per second: a photo takes a few seconds, a one-minute video takes minutes. This is the ceiling of what iOS allows. AirDrop is fast because it switches to a private Wi-Fi link that Apple does not open to other apps or to Android. Being on the same Wi-Fi network, or connecting one phone to the other's hotspot, removes the limit.
-- **A faster direct link exists but isn't built yet.** iOS 26 added Wi-Fi Aware, a router-free Wi-Fi link that also works with Android. It needs iOS 26, a one-time pairing between the two devices, and an app signed with Apple's Wi-Fi Aware entitlement, which an unsigned sideloaded build doesn't carry.
-- **The first Wi-Fi transfer on iOS may fall back to Bluetooth**, because iOS shows its "find devices on your local network" question at that moment. Allow it and the next transfer uses Wi-Fi.
+- **Bluetooth on its own is slow for big files.** Expect very roughly 50–150 KB per second: a photo takes a few seconds, a one-minute video takes minutes. Use one of the Wi-Fi links above for anything large.
+- **iOS asks once to find devices on your local network.** Inkwell Drop triggers this question when it first opens. Allow it and the next transfer uses Wi-Fi.
 - **The iOS share sheet shows up as "iPhone" or "iPad".** The name you set in the app applies to the app. iOS does not share settings between an app and its share extension unless the build is signed with an App Group.
 - **Not yet run on real hardware.** The transfer engine is tested on every build, including the Android (Kotlin) and iOS (Swift) implementations talking to each other. The Bluetooth layers compile and follow each platform's documented behaviour, but were written without phones to try them on. If two devices don't find each other, that is the place to look.
 
@@ -51,9 +72,9 @@ Neither system lets an app choose its own position, but you can pin it:
                                                                    │
                          OFFER ──► ACCEPT ──► file data ──► DONE ──► RECEIVED      (AES-256-GCM frames)
                                        │
-                                       └─ if ACCEPT lists a Wi-Fi address the sender can reach,
-                                          the file data goes over TCP instead (same encryption,
-                                          joined to the transfer by a one-time token)
+                                       └─ if ACCEPT lists a Wi-Fi address the sender can reach, or a
+                                          Wi-Fi Aware link, the file data goes over TCP on it instead
+                                          (same encryption, joined to the transfer by a one-time token)
 ```
 
 - A device that can receive advertises one service UUID and exposes a GATT characteristic holding the PSM of its L2CAP listener. A sender scans, reads the PSM and opens an L2CAP channel. Once connected, either side can send.
@@ -68,6 +89,8 @@ Neither system lets an app choose its own position, but you can pin it:
 | `ios/Core/` | The same engine in Swift. Also builds as a Swift package on macOS and Linux. |
 | `ios/Shared/` | CoreBluetooth transport, app state and the device picker, used by the app and the share extension. |
 | `ios/App/`, `ios/ShareExtension/` | The iOS app and its share-sheet extension. `ios/project.yml` is the XcodeGen spec. |
+| `ios/Controls/` | Control Center buttons and the App Intents behind them. |
+| `ios/Entitlements/` | Entitlements the CI build signs into the IPA (Wi-Fi Aware). |
 | `ios/Tools/drop-cli/` | A command-line peer used by the tests. |
 
 ## Building

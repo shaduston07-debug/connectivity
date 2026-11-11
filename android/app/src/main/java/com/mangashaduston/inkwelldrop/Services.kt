@@ -51,8 +51,8 @@ class ReceiveService : Service() {
         val stop = PendingIntent.getService(this, 1, Intent(this, ReceiveService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(this, Notifier.STATUS)
             .setSmallIcon(R.drawable.ic_drop)
-            .setContentTitle("Ready to receive")
-            .setContentText("Nearby devices with Inkwell Drop see this phone as “${e.deviceName}”.")
+            .setContentTitle("Inkwell Drop is ready")
+            .setContentText("Nearby people see you as “${e.deviceName}”.")
             .setContentIntent(open)
             .setOngoing(true)
             .setShowWhen(false)
@@ -75,6 +75,7 @@ class ReceiveService : Service() {
 
         /** Starts or stops the service to match the engine's state. */
         fun sync(ctx: Context, e: Engine) {
+            DropTile.refresh(ctx)
             val want = e.receiving && e.hasPermissions && e.bluetoothOn
             val intent = Intent(ctx, ReceiveService::class.java)
             if (want && (!running || shownName != e.deviceName)) {
@@ -153,7 +154,7 @@ object Notifier {
                 nm.notify(id, NotificationCompat.Builder(ctx, TRANSFERS)
                     .setSmallIcon(R.drawable.ic_drop)
                     .setContentTitle("${m.peerName} wants to send you ${m.summary}")
-                    .setContentText("Tap Accept to receive$size.")
+                    .setContentText(if (m.totalBytes > 0) formatBytes(m.totalBytes) else "Tap Accept to receive it.")
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setContentIntent(open)
                     .setAutoCancel(false)
@@ -196,7 +197,7 @@ object Notifier {
                         b.setContentIntent(PendingIntent.getActivity(ctx, id, it, PendingIntent.FLAG_IMMUTABLE))
                     }
                 } else {
-                    b.setContentText("Saved to your gallery and Downloads, in the Inkwell Drop folders.")
+                    b.setContentText("Saved to your gallery and Downloads.")
                 }
                 nm.notify(id, b.build())
             }
@@ -207,7 +208,7 @@ object Notifier {
                     nm.notify(id, NotificationCompat.Builder(ctx, TRANSFERS)
                         .setSmallIcon(R.drawable.ic_drop)
                         .setContentTitle("Couldn't receive ${m.summary} from ${m.peerName}")
-                        .setContentText(m.error ?: "The connection was lost.")
+                        .setContentText("It didn't go through. Ask them to send it again.")
                         .setAutoCancel(true)
                         .setContentIntent(open)
                         .build())

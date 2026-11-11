@@ -56,16 +56,19 @@ fun DropTheme(content: @Composable () -> Unit) {
 }
 
 fun statusText(m: TransferModel): String = when (m.state) {
-    TransferState.WAITING -> if (m.incoming) (if (m.accepted) "Connecting…" else "Waiting for you") else "Waiting…"
+    TransferState.WAITING -> if (m.incoming) (if (m.accepted) "Starting…" else "Waiting for you") else "Waiting for them to accept…"
     TransferState.TRANSFERRING -> {
-        val speed = if (m.bytesPerSecond > 0) " · ${formatBytes(m.bytesPerSecond)}/s" else ""
-        val via = if (m.viaLan) " · Wi-Fi" else " · Bluetooth"
-        "${formatBytes(m.bytesDone)} of ${formatBytes(m.totalBytes)}$speed$via"
+        var text = "${(m.progress * 100).toInt()}%"
+        if (m.bytesPerSecond > 0) {
+            val left = (m.totalBytes - m.bytesDone) / m.bytesPerSecond
+            text += if (left < 60) " · a few seconds left" else " · about ${(left + 59) / 60} min left"
+        }
+        text
     }
     TransferState.DONE -> if (m.incoming) "Received" else "Sent"
-    TransferState.DECLINED -> "Declined"
-    TransferState.CANCELLED -> m.error ?: "Cancelled"
-    TransferState.FAILED -> m.error ?: "Failed"
+    TransferState.DECLINED -> "They said no"
+    TransferState.CANCELLED -> if (m.error == null) "Cancelled" else "They cancelled"
+    TransferState.FAILED -> "Didn't go through. Try again."
 }
 
 /** A nearby device: a round avatar with a progress ring, like the built-in share row. */
@@ -103,13 +106,13 @@ fun PeerBubble(peer: PeerModel, transfer: TransferModel?, enabled: Boolean, onCl
         Spacer(Modifier.height(6.dp))
         Text(peer.name, style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         val sub = when (transfer?.state) {
-            null -> if (peer.platform == "ios") "iPhone or iPad" else "Android"
+            null -> ""
             TransferState.WAITING -> "Waiting…"
-            TransferState.TRANSFERRING -> "${(transfer.progress * 100).toInt()}%" + if (transfer.viaLan) " · Wi-Fi" else ""
+            TransferState.TRANSFERRING -> "${(transfer.progress * 100).toInt()}%" + if (transfer.viaLan) " ⚡" else ""
             TransferState.DONE -> "Sent"
-            TransferState.DECLINED -> "Declined"
+            TransferState.DECLINED -> "Said no"
             TransferState.CANCELLED -> "Cancelled"
-            TransferState.FAILED -> "Failed"
+            TransferState.FAILED -> "Try again"
         }
         Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
@@ -129,12 +132,12 @@ fun IncomingOfferDialog(engine: Engine) {
                 if (text != null) {
                     Text(text, maxLines = 4, overflow = TextOverflow.Ellipsis)
                 } else {
-                    Text(formatBytes(offer.totalBytes) + ". Photos and videos go to your gallery, other files to Downloads.")
+                    Text(formatBytes(offer.totalBytes))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { always = !always }) {
                     Checkbox(checked = always, onCheckedChange = { always = it })
-                    Text("Always accept from this device")
+                    Text("Always accept from ${offer.peerName}")
                 }
             }
         },

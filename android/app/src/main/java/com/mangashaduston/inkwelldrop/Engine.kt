@@ -230,6 +230,19 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
 
     // ---- Bluetooth state ----
 
+    /** Everything Inkwell Drop asks for. On Android 13+ these all appear as one "Nearby devices" prompt plus notifications. */
+    fun wantedPermissions(): Array<String> {
+        val list = mutableListOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
+        if (Build.VERSION.SDK_INT >= 33) {
+            list.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            list.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return list.toTypedArray()
+    }
+
+    /** True when an optional permission (direct Wi-Fi, notifications) hasn't been asked for yet. */
+    fun missingOptional(): Boolean = wantedPermissions().any { app.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+
     fun checkPermissions(): Boolean {
         val needed = listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
         return needed.all { app.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
