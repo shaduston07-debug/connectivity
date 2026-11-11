@@ -1,8 +1,8 @@
-# Beam — AirDrop-style sharing between iPhone, iPad and Android
+# Inkwell Drop — AirDrop-style sharing between iPhone, iPad and Android
 
-Beam sends photos, videos, files, links and text between Apple and Android devices. Both devices need Beam installed and Bluetooth turned on. Nothing else is needed: no account, no internet, no pairing, no cables.
+Inkwell Drop sends photos, videos, files, links and text between Apple and Android devices. Both devices need Inkwell Drop installed and Bluetooth turned on. Nothing else is needed: no account, no internet, no pairing, no cables.
 
-- **In the share sheet.** Tap Share in any app, pick Beam, tap a device. The transfer runs inside the share sheet, with a progress ring on the device, and the sheet closes when it is done.
+- **In the share sheet.** Tap Share in any app, pick Inkwell Drop, tap a device. The transfer runs inside the share sheet, with a progress ring on the device, and the sheet closes when it is done.
 - **Bluetooth only.** Devices find each other and transfer over Bluetooth LE. Wi-Fi can be off.
 - **Faster on Wi-Fi, automatically.** If both devices happen to be on the same Wi-Fi network, the file data moves to it without anyone doing anything. If not, it stays on Bluetooth.
 - **Android receives at any time.** A small background service keeps the phone visible, and offers arrive as a notification with Accept and Decline.
@@ -14,24 +14,24 @@ Beam sends photos, videos, files, links and text between Apple and Android devic
 
 Every push builds both apps. Download them from the [latest release](../../releases/tag/latest).
 
-**Android (12 or later):** open `Beam.apk` on the phone and install it. Open Beam once and allow *Nearby devices* and *Notifications*.
+**Android (12 or later):** open `InkwellDrop.apk` on the phone and install it. Open Inkwell Drop once and allow *Nearby devices* and *Notifications*.
 
-**iPhone / iPad (iOS 16 or later):** `Beam.ipa` is unsigned, because iOS only installs apps signed for your device. Install it with SideStore, AltStore or Sideloadly (a free Apple ID works, with a refresh every 7 days), or build it in Xcode with your own team. Open Beam once and allow Bluetooth.
+**iPhone / iPad (iOS 16 or later):** `InkwellDrop.ipa` is unsigned, because iOS only installs apps signed for your device. Install it with SideStore, AltStore or Sideloadly (a free Apple ID works, with a refresh every 7 days), or build it in Xcode with your own team. Open Inkwell Drop once and allow Bluetooth.
 
-## Put Beam at the front of the share sheet
+## Put Inkwell Drop at the front of the share sheet
 
 Neither system lets an app choose its own position, but you can pin it:
 
-- **iOS:** in the share sheet, scroll the row of apps to the end and tap **More**, then **Edit**. Add Beam to Favourites and drag it to the top.
-- **Android:** in the share sheet, press and hold Beam and choose **Pin**. After you have sent to a device once, that device also appears by name in the top row, and tapping it sends straight to it.
+- **iOS:** in the share sheet, scroll the row of apps to the end and tap **More**, then **Edit**. Add Inkwell Drop to Favourites and drag it to the top.
+- **Android:** in the share sheet, press and hold Inkwell Drop and choose **Pin**. After you have sent to a device once, that device also appears by name in the top row, and tapping it sends straight to it.
 
 ## Using it
 
-**Send:** Share → Beam → tap the device. Or open Beam and choose Photos, Files or Text.
+**Send:** Share → Inkwell Drop → tap the device. Or open Inkwell Drop and choose Photos, Files or Text.
 
 **Receive on Android:** nothing to do. Accept the notification.
 
-**Receive on iPhone or iPad:** open Beam. iOS does not let an app be found over Bluetooth once it is closed. While Beam is in the background (opened earlier and not swiped away) it can still pick up an Android sender and show a notification, but opening the app is the reliable way.
+**Receive on iPhone or iPad:** open Inkwell Drop. iOS does not let an app be found over Bluetooth once it is closed. While Inkwell Drop is in the background (opened earlier and not swiped away) it can still pick up an Android sender and show a notification, but opening the app is the reliable way.
 
 ## Limits you should know about
 
@@ -66,7 +66,7 @@ Neither system lets an app choose its own position, but you can pin it:
 | `ios/Core/` | The same engine in Swift. Also builds as a Swift package on macOS and Linux. |
 | `ios/Shared/` | CoreBluetooth transport, app state and the device picker, used by the app and the share extension. |
 | `ios/App/`, `ios/ShareExtension/` | The iOS app and its share-sheet extension. `ios/project.yml` is the XcodeGen spec. |
-| `ios/Tools/beam-cli/` | A command-line peer used by the tests. |
+| `ios/Tools/drop-cli/` | A command-line peer used by the tests. |
 
 ## Building
 
@@ -75,11 +75,11 @@ Neither system lets an app choose its own position, but you can pin it:
 cd android && ./gradlew assembleRelease
 
 # iOS (on a Mac)
-cd ios && brew install xcodegen && xcodegen generate && open Beam.xcodeproj
+cd ios && brew install xcodegen && xcodegen generate && open InkwellDrop.xcodeproj
 
 # Protocol tests, including Kotlin against Swift
-cd ios && swift build --product beam-cli
-cd ../android && BEAM_SWIFT_CLI=../ios/.build/debug/beam-cli ./gradlew testDebugUnitTest
+cd ios && swift build --product drop-cli
+cd ../android && DROP_SWIFT_CLI=../ios/.build/debug/drop-cli ./gradlew testDebugUnitTest
 ```
 
-`android/sideload.keystore` is a fixed signing key (password `android`) so each build installs over the last. It is public, so anyone could sign an APK that your phone would accept as an update to Beam. Replace it with a private key before distributing the app to other people.
+`android/sideload.keystore` is a fixed signing key (password `android`) so each build installs over the last. It is public, so anyone could sign an APK that your phone would accept as an update to Inkwell Drop. Replace it with a private key before distributing the app to other people.

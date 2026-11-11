@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -45,10 +45,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mangashaduston.beam.core.TransferState
+import com.mangashaduston.inkwelldrop.core.TransferState
 
 @Composable
-fun BeamTheme(content: @Composable () -> Unit) {
+fun DropTheme(content: @Composable () -> Unit) {
     val ctx = LocalContext.current
     val dark = isSystemInDarkTheme()
     val colors = if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
@@ -115,7 +115,7 @@ fun PeerBubble(peer: PeerModel, transfer: TransferModel?, enabled: Boolean, onCl
     }
 }
 
-/** Asks about the oldest offer that is waiting for an answer. Shown on every Beam screen. */
+/** Asks about the oldest offer that is waiting for an answer. Shown on every Inkwell Drop screen. */
 @Composable
 fun IncomingOfferDialog(engine: Engine) {
     val offer = engine.transfers.lastOrNull { it.incoming && it.state == TransferState.WAITING && !it.accepted } ?: return

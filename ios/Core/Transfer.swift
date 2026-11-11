@@ -36,7 +36,7 @@ public protocol SinkFactory {
     func create(item: ItemMeta) throws -> FileSink
 }
 
-public final class BeamEnv {
+public final class DropEnv {
     public let local: LocalInfo
     public let sinks: SinkFactory
     public let lan: LanServer?
@@ -274,7 +274,7 @@ public final class OutgoingTransfer: Transfer {
 public final class IncomingTransfer: Transfer {
     // Weak: a transfer that moved to Wi-Fi can outlive the Bluetooth connection it started on.
     private weak var link: PeerLink?
-    private let env: BeamEnv
+    private let env: DropEnv
     /// Where each finished file was saved.
     public private(set) var results: [String] = []
     public private(set) var accepted = false

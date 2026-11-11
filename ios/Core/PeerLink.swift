@@ -14,10 +14,10 @@ public extension PeerLinkListener {
 }
 
 /// One connection to another device. Either side can offer files over it.
-/// The connection usually starts on Bluetooth; file data moves to Wi-Fi when `BeamEnv.lan` allows it.
+/// The connection usually starts on Bluetooth; file data moves to Wi-Fi when `DropEnv.lan` allows it.
 public final class PeerLink {
     public let session: Session
-    public let env: BeamEnv
+    public let env: DropEnv
     /// Bytes per data message on this connection. Small on Bluetooth so progress and cancel stay responsive.
     public let chunkSize: Int
     public weak var listener: PeerLinkListener?
@@ -30,9 +30,9 @@ public final class PeerLink {
     private var outgoing: [String: OutgoingTransfer] = [:]
     private var incoming: [String: IncomingTransfer] = [:]
     private var dataTarget: IncomingTransfer?
-    let sendQueue = DispatchQueue(label: "beam.send")
+    let sendQueue = DispatchQueue(label: "drop.send")
 
-    public init(duplex: Duplex, env: BeamEnv, chunkSize: Int, listener: PeerLinkListener?) {
+    public init(duplex: Duplex, env: DropEnv, chunkSize: Int, listener: PeerLinkListener?) {
         session = Session(duplex: duplex, local: env.local)
         self.env = env
         self.chunkSize = chunkSize

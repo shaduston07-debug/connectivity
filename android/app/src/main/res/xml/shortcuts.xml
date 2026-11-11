@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Lets Beam's shortcuts appear as direct targets at the top of the share sheet. -->
-    <share-target android:targetClass="com.mangashaduston.beam.ShareActivity">
+    <!-- Lets Inkwell Drop's shortcuts appear as direct targets at the top of the share sheet. -->
+    <share-target android:targetClass="com.mangashaduston.inkwelldrop.ShareActivity">
         <data android:mimeType="*/*" />
-        <category android:name="com.mangashaduston.beam.category.SHARE_TARGET" />
+        <category android:name="com.mangashaduston.inkwelldrop.category.SHARE_TARGET" />
     </share-target>
 </shortcuts>

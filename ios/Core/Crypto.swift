@@ -52,7 +52,7 @@ public final class Identity {
     func sign(_ data: Data) throws -> Data { try key.signature(for: data).derRepresentation }
 
     /// Loads the identity saved in `defaults`, creating one on first use.
-    public static func load(from defaults: UserDefaults, key: String = "beam.identity") -> Identity {
+    public static func load(from defaults: UserDefaults, key: String = "drop.identity") -> Identity {
         if let s = defaults.string(forKey: key), let id = Identity(encoded: s) { return id }
         let id = Identity()
         defaults.set(id.encode(), forKey: key)

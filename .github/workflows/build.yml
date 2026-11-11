@@ -28,22 +28,22 @@ jobs:
 
       - name: Build the Swift test peer
         working-directory: ios
-        run: swift build --product beam-cli
+        run: swift build --product drop-cli
 
       - name: Protocol tests (Kotlin, and Kotlin against Swift)
         working-directory: android
-        run: BEAM_SWIFT_CLI="$GITHUB_WORKSPACE/ios/.build/debug/beam-cli" ./gradlew --no-daemon testDebugUnitTest
+        run: DROP_SWIFT_CLI="$GITHUB_WORKSPACE/ios/.build/debug/drop-cli" ./gradlew --no-daemon testDebugUnitTest
 
       - name: Build APK
         working-directory: android
         run: |
           ./gradlew --no-daemon assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/Beam.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/InkwellDrop.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Beam-apk
-          path: Beam.apk
+          name: InkwellDrop-apk
+          path: InkwellDrop.apk
 
   ios:
     name: iOS app
@@ -65,8 +65,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild \
-            -project Beam.xcodeproj \
-            -scheme Beam \
+            -project InkwellDrop.xcodeproj \
+            -scheme InkwellDrop \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -74,7 +74,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
-          test -d build/Build/Products/Release-iphoneos/Beam.app/PlugIns/BeamShare.appex
+          test -d build/Build/Products/Release-iphoneos/InkwellDrop.app/PlugIns/InkwellDropShare.appex
 
       - name: Show compile errors
         if: failure()
@@ -85,14 +85,14 @@ jobs:
         working-directory: ios
         run: |
           mkdir -p Payload
-          cp -R build/Build/Products/Release-iphoneos/Beam.app Payload/
-          zip -qry "$GITHUB_WORKSPACE/Beam.ipa" Payload
-          ls -la "$GITHUB_WORKSPACE/Beam.ipa"
+          cp -R build/Build/Products/Release-iphoneos/InkwellDrop.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/InkwellDrop.ipa" Payload
+          ls -la "$GITHUB_WORKSPACE/InkwellDrop.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Beam-ipa
-          path: Beam.ipa
+          name: InkwellDrop-ipa
+          path: InkwellDrop.ipa
 
   release:
     name: Publish "latest" release
@@ -110,7 +110,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest Beam.apk Beam.ipa \
+          gh release create latest InkwellDrop.apk InkwellDrop.ipa \
             --target "$GITHUB_SHA" \
-            --title "Beam (build ${{ github.run_number }})" \
-            --notes "Built from ${GITHUB_SHA::7}. Beam.apk installs directly on Android. Beam.ipa is unsigned: install it with SideStore, AltStore, Sideloadly or similar."
+            --title "Inkwell Drop (build ${{ github.run_number }})" \
+            --notes "Built from ${GITHUB_SHA::7}. InkwellDrop.apk installs directly on Android. InkwellDrop.ipa is unsigned: install it with SideStore, AltStore, Sideloadly or similar."

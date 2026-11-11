@@ -1,4 +1,4 @@
-package com.mangashaduston.beam.core
+package com.mangashaduston.inkwelldrop.core
 
 import java.math.BigInteger
 import java.security.AlgorithmParameters

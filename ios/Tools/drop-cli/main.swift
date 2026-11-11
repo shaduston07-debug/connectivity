@@ -1,11 +1,11 @@
 // A command-line peer used to test the Swift engine against the Android one over TCP.
 //
-//   beam-cli recv <folder> [--lan]        prints "READY <port>", accepts every offer
-//   beam-cli send <host> <port> <file>...
+//   drop-cli recv <folder> [--lan]        prints "READY <port>", accepts every offer
+//   drop-cli send <host> <port> <file>...
 //
 // Each finished transfer prints "DONE <state> lan=<true|false>".
 
-import BeamCore
+import DropCore
 import Foundation
 
 setvbuf(stdout, nil, _IOLBF, 0)
@@ -51,7 +51,7 @@ if args.count >= 3, args[1] == "recv" {
         lan!.addressProvider = { ["127.0.0.1"] }
         lan!.start()
     }
-    let env = BeamEnv(local: local, sinks: Sinks(folder: folder), lan: lan)
+    let env = DropEnv(local: local, sinks: Sinks(folder: folder), lan: lan)
     let listener = try TcpListener()
     print("READY \(listener.port)")
     guard let sock = listener.accept() else { exit(1) }
@@ -60,7 +60,7 @@ if args.count >= 3, args[1] == "recv" {
     link.start()
     dispatchMain()
 } else if args.count >= 5, args[1] == "send" {
-    let env = BeamEnv(local: local, sinks: Sinks(folder: URL(fileURLWithPath: NSTemporaryDirectory())), lan: nil)
+    let env = DropEnv(local: local, sinks: Sinks(folder: URL(fileURLWithPath: NSTemporaryDirectory())), lan: nil)
     let sock = try TcpSocket.connect(host: args[2], port: UInt16(args[3])!, timeoutMs: 3000)
     let peer = Peer(folder: nil)
     let link = PeerLink(duplex: sock, env: env, chunkSize: 4096, listener: peer)
@@ -74,6 +74,6 @@ if args.count >= 3, args[1] == "recv" {
     }
     dispatchMain()
 } else {
-    print("usage: beam-cli recv <folder> [--lan] | beam-cli send <host> <port> <file>...")
+    print("usage: drop-cli recv <folder> [--lan] | drop-cli send <host> <port> <file>...")
     exit(2)
 }

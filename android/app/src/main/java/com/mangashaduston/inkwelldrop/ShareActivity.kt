@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -41,13 +41,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mangashaduston.beam.core.Source
-import com.mangashaduston.beam.core.TransferState
+import com.mangashaduston.inkwelldrop.core.Source
+import com.mangashaduston.inkwelldrop.core.TransferState
 import kotlinx.coroutines.delay
 import kotlin.concurrent.thread
 
 /**
- * The sheet that appears when you pick Beam from another app's share menu.
+ * The sheet that appears when you pick Inkwell Drop from another app's share menu.
  * It finds nearby devices straight away; tap one to send.
  */
 class ShareActivity : ComponentActivity() {
@@ -66,7 +66,7 @@ class ShareActivity : ComponentActivity() {
             ?: intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)?.removePrefix("peer-")?.takeIf { it != "nearby" }
         loadPayload()
         setContent {
-            BeamTheme {
+            DropTheme {
                 val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
                 ModalBottomSheet(onDismissRequest = { close() }, sheetState = sheetState) {
                     Sheet()
@@ -96,7 +96,7 @@ class ShareActivity : ComponentActivity() {
             payloadError = "There is nothing to send."
             return
         }
-        thread(name = "beam-prepare") {
+        thread(name = "drop-prepare") {
             try {
                 val sources = list.map { UriSource.from(this, it) }
                 val p = if (sources.isNotEmpty()) {
@@ -108,7 +108,7 @@ class ShareActivity : ComponentActivity() {
                 }
                 runOnUiThread { payload = p }
             } catch (e: Exception) {
-                runOnUiThread { payloadError = "Beam can't read what was shared." }
+                runOnUiThread { payloadError = "Inkwell Drop can't read what was shared." }
             }
         }
     }
@@ -174,7 +174,7 @@ class ShareActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 16.dp),
         ) {
-            Text("Send with Beam", style = MaterialTheme.typography.titleLarge)
+            Text("Send with Inkwell Drop", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
             Text(
                 p?.summary ?: payloadError ?: "Getting ready…",
@@ -184,7 +184,7 @@ class ShareActivity : ComponentActivity() {
             Spacer(Modifier.height(16.dp))
             when {
                 !e.hasPermissions -> {
-                    Text("Beam needs the Nearby devices permission to find other devices over Bluetooth.", textAlign = TextAlign.Center)
+                    Text("Inkwell Drop needs the Nearby devices permission to find other devices over Bluetooth.", textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = {
                         permissions.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT))
@@ -201,7 +201,7 @@ class ShareActivity : ComponentActivity() {
                             CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "Looking for nearby devices…\nOn an iPhone or iPad, open Beam.",
+                                "Looking for nearby devices…\nOn an iPhone or iPad, open Inkwell Drop.",
                                 style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

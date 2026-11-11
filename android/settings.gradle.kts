@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Beam"
+rootProject.name = "InkwellDrop"
 include(":app")

@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -50,7 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mangashaduston.beam.core.TransferState
+import com.mangashaduston.inkwelldrop.core.TransferState
 import java.text.DateFormat
 import java.util.Date
 
@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         Shortcuts.publishDefault(this)
         setContent {
-            BeamTheme {
+            DropTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Screen()
                 }
@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
             if (text.startsWith("http://") || text.startsWith("https://")) {
                 runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(text.trim()))) }
             } else {
-                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Beam", text))
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Inkwell Drop", text))
                 if (Build.VERSION.SDK_INT < 33) Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
             }
             return
@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "No app can open this file. It is in your Beam folder.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "No app can open this file. It is in your Inkwell Drop folder.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
         Column(
             modifier = Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
-            Text("Beam", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+            Text("Inkwell Drop", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Text(
                 "Share between Android, iPhone and iPad.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -136,8 +136,8 @@ class MainActivity : ComponentActivity() {
 
             when {
                 !e.hasPermissions -> Notice(
-                    "Allow Beam to find nearby devices",
-                    "Beam uses Bluetooth to find other devices and send to them. It also asks to show notifications, so you can accept files when the app is closed.",
+                    "Allow Inkwell Drop to find nearby devices",
+                    "Inkwell Drop uses Bluetooth to find other devices and send to them. It also asks to show notifications, so you can accept files when the app is closed.",
                     "Allow",
                 ) {
                     val wanted = mutableListOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
                         Column(Modifier.weight(1f)) {
                             Text(if (e.receiving) "Ready to receive" else "Receiving is off", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                if (e.receiving) "Nearby devices see this phone as “${e.deviceName}”, even when Beam is closed."
+                                if (e.receiving) "Nearby devices see this phone as “${e.deviceName}”, even when Inkwell Drop is closed."
                                 else "Other devices can't send to this phone.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -172,7 +172,7 @@ class MainActivity : ComponentActivity() {
                 FilledTonalButton(onClick = { writingText = true }, modifier = Modifier.weight(1f)) { Text("Text") }
             }
             Text(
-                "You can also tap Share in any app and choose Beam.",
+                "You can also tap Share in any app and choose Inkwell Drop.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
             )

@@ -52,7 +52,7 @@ struct ContentView: View {
                 recentSection
                 settingsSection
             }
-            .navigationTitle("Beam")
+            .navigationTitle("Inkwell Drop")
         }
         .sheet(item: $outgoing, onDismiss: releaseFiles) { item in
             SendPanel(payload: item.payload, problem: item.problem) { outgoing = nil }
@@ -109,7 +109,7 @@ struct ContentView: View {
         Section {
             switch engine.bluetooth {
             case .denied:
-                notice("Beam isn't allowed to use Bluetooth", "Turn on Bluetooth for Beam in Settings.", "Open Settings") {
+                notice("Inkwell Drop isn't allowed to use Bluetooth", "Turn on Bluetooth for Inkwell Drop in Settings.", "Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
             case .off:
@@ -121,7 +121,7 @@ struct ContentView: View {
                     Image(systemName: "dot.radiowaves.left.and.right").font(.title2).foregroundStyle(Color.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Ready to receive").font(.headline)
-                        Text("Nearby devices see this one as “\(engine.deviceName)” while Beam is open.")
+                        Text("Nearby devices see this one as “\(engine.deviceName)” while Inkwell Drop is open.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
@@ -152,7 +152,7 @@ struct ContentView: View {
         } header: {
             Text("Send")
         } footer: {
-            Text("You can also tap Share in any app and choose Beam.")
+            Text("You can also tap Share in any app and choose Inkwell Drop.")
         }
     }
 
@@ -221,7 +221,7 @@ struct ContentView: View {
         } header: {
             Text("Settings")
         } footer: {
-            Text("When both devices are on the same Wi-Fi network, Beam sends over it, which is much faster for videos and large files. Otherwise everything goes over Bluetooth.")
+            Text("When both devices are on the same Wi-Fi network, Inkwell Drop sends over it, which is much faster for videos and large files. Otherwise everything goes over Bluetooth.")
         }
     }
 

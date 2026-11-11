@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.app.Application
 import android.app.Notification
@@ -19,9 +19,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
-import com.mangashaduston.beam.core.TransferState
+import com.mangashaduston.inkwelldrop.core.TransferState
 
-class BeamApp : Application() {
+class DropApp : Application() {
     lateinit var engine: Engine
         private set
 
@@ -32,10 +32,10 @@ class BeamApp : Application() {
     }
 }
 
-val Context.engine: Engine get() = (applicationContext as BeamApp).engine
+val Context.engine: Engine get() = (applicationContext as DropApp).engine
 
 /**
- * Keeps Beam running so this device can be found and receive at any time,
+ * Keeps Inkwell Drop running so this device can be found and receive at any time,
  * the way a built-in sharing feature would.
  */
 class ReceiveService : Service() {
@@ -50,9 +50,9 @@ class ReceiveService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, ReceiveService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(this, Notifier.STATUS)
-            .setSmallIcon(R.drawable.ic_beam)
+            .setSmallIcon(R.drawable.ic_drop)
             .setContentTitle("Ready to receive")
-            .setContentText("Nearby devices with Beam see this phone as “${e.deviceName}”.")
+            .setContentText("Nearby devices with Inkwell Drop see this phone as “${e.deviceName}”.")
             .setContentIntent(open)
             .setOngoing(true)
             .setShowWhen(false)
@@ -69,7 +69,7 @@ class ReceiveService : Service() {
     }
 
     companion object {
-        private const val ACTION_STOP = "com.mangashaduston.beam.STOP"
+        private const val ACTION_STOP = "com.mangashaduston.inkwelldrop.STOP"
         private var running = false
         private var shownName: String? = null
 
@@ -112,9 +112,9 @@ class ActionReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACCEPT = "com.mangashaduston.beam.ACCEPT"
-        const val DECLINE = "com.mangashaduston.beam.DECLINE"
-        const val CANCEL = "com.mangashaduston.beam.CANCEL"
+        const val ACCEPT = "com.mangashaduston.inkwelldrop.ACCEPT"
+        const val DECLINE = "com.mangashaduston.inkwelldrop.DECLINE"
+        const val CANCEL = "com.mangashaduston.inkwelldrop.CANCEL"
     }
 }
 
@@ -151,7 +151,7 @@ object Notifier {
                 if (e.uiVisible) return nm.cancel(id) // the app shows its own prompt
                 if (lastProgress.put(m.id, -1) == -1) return
                 nm.notify(id, NotificationCompat.Builder(ctx, TRANSFERS)
-                    .setSmallIcon(R.drawable.ic_beam)
+                    .setSmallIcon(R.drawable.ic_drop)
                     .setContentTitle("${m.peerName} wants to send you ${m.summary}")
                     .setContentText("Tap Accept to receive$size.")
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -165,7 +165,7 @@ object Notifier {
                 val pct = (m.progress * 100).toInt()
                 if (lastProgress.put(m.id, pct) == pct) return
                 nm.notify(id, NotificationCompat.Builder(ctx, PROGRESS)
-                    .setSmallIcon(R.drawable.ic_beam)
+                    .setSmallIcon(R.drawable.ic_drop)
                     .setContentTitle("Receiving ${m.summary} from ${m.peerName}")
                     .setProgress(100, pct, m.totalBytes == 0L)
                     .setOngoing(true)
@@ -177,9 +177,9 @@ object Notifier {
             m.state == TransferState.DONE -> {
                 lastProgress.remove(m.id)
                 if (e.uiVisible) return nm.cancel(id) // the app's own list shows it
-                val t = m.transfer as? com.mangashaduston.beam.core.IncomingTransfer
+                val t = m.transfer as? com.mangashaduston.inkwelldrop.core.IncomingTransfer
                 val b = NotificationCompat.Builder(ctx, TRANSFERS)
-                    .setSmallIcon(R.drawable.ic_beam)
+                    .setSmallIcon(R.drawable.ic_drop)
                     .setContentTitle("Received ${m.summary} from ${m.peerName}")
                     .setAutoCancel(true)
                     .setContentIntent(open)
@@ -196,7 +196,7 @@ object Notifier {
                         b.setContentIntent(PendingIntent.getActivity(ctx, id, it, PendingIntent.FLAG_IMMUTABLE))
                     }
                 } else {
-                    b.setContentText("Saved to your gallery and Downloads, in the Beam folders.")
+                    b.setContentText("Saved to your gallery and Downloads, in the Inkwell Drop folders.")
                 }
                 nm.notify(id, b.build())
             }
@@ -205,7 +205,7 @@ object Notifier {
                 nm.cancel(id)
                 if (m.state == TransferState.FAILED && m.accepted && !e.uiVisible) {
                     nm.notify(id, NotificationCompat.Builder(ctx, TRANSFERS)
-                        .setSmallIcon(R.drawable.ic_beam)
+                        .setSmallIcon(R.drawable.ic_drop)
                         .setContentTitle("Couldn't receive ${m.summary} from ${m.peerName}")
                         .setContentText(m.error ?: "The connection was lost.")
                         .setAutoCancel(true)
@@ -225,11 +225,11 @@ object Notifier {
 }
 
 /**
- * Puts Beam, and the devices you send to most, in the top row of Android's share sheet.
+ * Puts Inkwell Drop, and the devices you send to most, in the top row of Android's share sheet.
  */
 object Shortcuts {
-    const val CATEGORY = "com.mangashaduston.beam.category.SHARE_TARGET"
-    const val EXTRA_PEER = "com.mangashaduston.beam.PEER"
+    const val CATEGORY = "com.mangashaduston.inkwelldrop.category.SHARE_TARGET"
+    const val EXTRA_PEER = "com.mangashaduston.inkwelldrop.PEER"
 
     private fun build(ctx: Context, id: String, label: String, peerId: String?, rank: Int): ShortcutInfoCompat {
         val intent = Intent(ctx, ShareActivity::class.java).setAction(Intent.ACTION_SEND)

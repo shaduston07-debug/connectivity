@@ -1,4 +1,4 @@
-package com.mangashaduston.beam.core
+package com.mangashaduston.inkwelldrop.core
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -54,10 +54,10 @@ class FileSource(val file: File, private val delayMs: Long = 0) : Source {
 }
 
 class TestPeer(name: String, lan: Boolean, val autoAccept: Boolean? = true) : PeerLink.Listener {
-    val dir: File = Files.createTempDirectory("beam-$name").toFile()
+    val dir: File = Files.createTempDirectory("drop-$name").toFile()
     val local = LocalInfo(Identity.generate(), name, "test")
     val lanServer = if (lan) LanServer(local).apply { addressProvider = { listOf("127.0.0.1") }; start() } else null
-    val env = BeamEnv(local, DirSinks(dir), lanServer)
+    val env = DropEnv(local, DirSinks(dir), lanServer)
     val ready = CountDownLatch(1)
     val closed = CountDownLatch(1)
     val offers = LinkedBlockingQueue<IncomingTransfer>()
@@ -106,7 +106,7 @@ class ProtocolTest {
         pair(a, b)
         assertEquals("bob", a.link.peer.name)
         assertEquals(b.local.id, a.link.peer.id)
-        val src = Files.createTempDirectory("beam-src").toFile()
+        val src = Files.createTempDirectory("drop-src").toFile()
         val files = listOf(randomFile(src, "photo.jpg", 700_001), randomFile(src, "empty.bin", 0), randomFile(src, "note.txt", 13))
         val out = a.link.offer(files.map { FileSource(it) }, null)
         await(out)
@@ -143,7 +143,7 @@ class ProtocolTest {
         val a = TestPeer("alice", false)
         val b = TestPeer("bob", false, autoAccept = false)
         pair(a, b)
-        val src = Files.createTempDirectory("beam-src").toFile()
+        val src = Files.createTempDirectory("drop-src").toFile()
         val out = a.link.offer(listOf(FileSource(randomFile(src, "a.bin", 10))), null)
         await(out)
         assertEquals(TransferState.DECLINED, out.state)
@@ -153,7 +153,7 @@ class ProtocolTest {
         val a = TestPeer("alice", false)
         val b = TestPeer("bob", lan)
         pair(a, b)
-        val src = Files.createTempDirectory("beam-src").toFile()
+        val src = Files.createTempDirectory("drop-src").toFile()
         val out = a.link.offer(listOf(FileSource(randomFile(src, "big.bin", 3_000_000), delayMs = 5)), null)
         val inc = b.offers.poll(5, TimeUnit.SECONDS)!!
         while (inc.bytesDone == 0L) Thread.sleep(5)
@@ -186,7 +186,7 @@ class ProtocolTest {
         val a = TestPeer("alice", false)
         val b = TestPeer("bob", false)
         pair(a, b)
-        val src = Files.createTempDirectory("beam-src").toFile()
+        val src = Files.createTempDirectory("drop-src").toFile()
         val out = a.link.offer(listOf(FileSource(randomFile(src, "big.bin", 3_000_000), delayMs = 5)), null)
         val inc = b.offers.poll(5, TimeUnit.SECONDS)!!
         while (inc.bytesDone == 0L) Thread.sleep(5)
@@ -221,15 +221,15 @@ class ProtocolTest {
         assertEquals("file", Transfer.safeName("..."))
     }
 
-    // ---- Kotlin <-> Swift. Runs when BEAM_SWIFT_CLI points at the built beam-cli. ----
+    // ---- Kotlin <-> Swift. Runs when DROP_SWIFT_CLI points at the built drop-cli. ----
 
     /** A name with accents, where the JVM's locale can create such files. */
     private val oddName: String =
         if ((System.getProperty("sun.jnu.encoding") ?: "").startsWith("UTF", true)) "ünï côdé.txt" else "plain name.txt"
 
     private fun swiftCli(): String {
-        val cli = System.getenv("BEAM_SWIFT_CLI")
-        assumeTrue("BEAM_SWIFT_CLI not set", !cli.isNullOrEmpty())
+        val cli = System.getenv("DROP_SWIFT_CLI")
+        assumeTrue("DROP_SWIFT_CLI not set", !cli.isNullOrEmpty())
         return cli!!
     }
 
@@ -243,7 +243,7 @@ class ProtocolTest {
 
     private fun kotlinToSwift(lan: Boolean) {
         val cli = swiftCli()
-        val outDir = Files.createTempDirectory("beam-swift-out").toFile()
+        val outDir = Files.createTempDirectory("drop-swift-out").toFile()
         val args = mutableListOf(cli, "recv", outDir.path)
         if (lan) args.add("--lan")
         val p = ProcessBuilder(args).redirectErrorStream(true).start()
@@ -253,7 +253,7 @@ class ProtocolTest {
             a.attach(Socket("127.0.0.1", port))
             assertTrue(a.ready.await(5, TimeUnit.SECONDS))
             assertEquals("swift", a.link.peer.name)
-            val src = Files.createTempDirectory("beam-src").toFile()
+            val src = Files.createTempDirectory("drop-src").toFile()
             val files = listOf(randomFile(src, "video.mov", 2_500_123), randomFile(src, oddName, 77))
             val out = a.link.offer(files.map { FileSource(it) }, null)
             await(out)
@@ -275,7 +275,7 @@ class ProtocolTest {
         val cli = swiftCli()
         val b = TestPeer("kotlin", lan)
         val server = ServerSocket(0)
-        val src = Files.createTempDirectory("beam-src").toFile()
+        val src = Files.createTempDirectory("drop-src").toFile()
         val files = listOf(randomFile(src, "video.mov", 2_500_123), randomFile(src, oddName, 77))
         val p = ProcessBuilder(listOf(cli, "send", "127.0.0.1", server.localPort.toString()) + files.map { it.path })
             .redirectErrorStream(true).start()

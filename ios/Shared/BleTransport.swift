@@ -1,14 +1,14 @@
 import CoreBluetooth
 import Foundation
 
-/// The Bluetooth LE side of Beam. Both platforms use the same scheme:
+/// The Bluetooth LE side of Inkwell Drop. Both platforms use the same scheme:
 ///
 ///  - A device that can receive advertises `service` and runs a GATT service whose one
 ///    characteristic holds the PSM of an L2CAP channel listener.
 ///  - A device that wants to talk scans for the advert, reads the PSM, and opens an L2CAP channel.
 ///    Everything else (handshake, offers, file data) happens on that channel.
 ///  - While its send screen is open, an Android device advertises `seek` instead. iOS can't be
-///    found by scanning while Beam is in the background, but it can keep scanning for `seek`
+///    found by scanning while Inkwell Drop is in the background, but it can keep scanning for `seek`
 ///    there and connect to the sender itself.
 final class BleTransport: NSObject {
     static let service = CBUUID(string: "EA0253FD-80AD-4DEF-9841-329FF222EE2E")
@@ -22,7 +22,7 @@ final class BleTransport: NSObject {
     /// Bluetooth was turned on or off, or permission changed. Called on the Bluetooth queue.
     var onStateChange: (() -> Void)?
 
-    private let queue = DispatchQueue(label: "beam.ble")
+    private let queue = DispatchQueue(label: "drop.ble")
     private var central: CBCentralManager!
     private var peripheralManager: CBPeripheralManager?
 
@@ -246,7 +246,7 @@ final class L2capDuplex: NSObject, Duplex, StreamDelegate {
             output.close()
             self.onClose()
         }
-        thread.name = "beam-l2cap"
+        thread.name = "drop-l2cap"
         thread.qualityOfService = .userInitiated
         thread.start()
         started.wait()

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mangashaduston.beam"
+    namespace = "com.mangashaduston.inkwelldrop"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mangashaduston.beam"
+        applicationId = "com.mangashaduston.inkwelldrop"
         minSdk = 31
         targetSdk = 35
         versionCode = (System.getenv("BUILD_NUMBER") ?: "1").toInt()
@@ -21,7 +21,7 @@ android {
         create("sideload") {
             storeFile = rootProject.file("sideload.keystore")
             storePassword = "android"
-            keyAlias = "beam"
+            keyAlias = "drop"
             keyPassword = "android"
         }
     }
@@ -47,8 +47,12 @@ android {
         compose = true
     }
     testOptions {
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.testLogging { events("passed", "failed", "skipped") }
+            // Robolectric downloads a simulated Android at test time. Google's mirror of Maven Central
+            // doesn't rate-limit shared build machines the way the main site does.
+            it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
         }
     }
 }
@@ -64,4 +68,6 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core:1.6.1")
 }

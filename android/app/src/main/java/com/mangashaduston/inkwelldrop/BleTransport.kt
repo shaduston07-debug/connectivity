@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -25,7 +25,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
-import com.mangashaduston.beam.core.Duplex
+import com.mangashaduston.inkwelldrop.core.Duplex
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
- * The Bluetooth LE side of Beam. Both platforms use the same scheme:
+ * The Bluetooth LE side of Inkwell Drop. Both platforms use the same scheme:
  *
  *  - A device that can receive advertises [SERVICE] and runs a GATT service whose one
  *    characteristic holds the PSM of an L2CAP channel listener.
@@ -56,7 +56,7 @@ class BleTransport(private val ctx: Context, private val listener: Listener) {
         val SERVICE: UUID = UUID.fromString("EA0253FD-80AD-4DEF-9841-329FF222EE2E")
         val SEEK: UUID = UUID.fromString("4535B2F7-8164-442D-806B-F8DA5160CBFB")
         val PSM: UUID = UUID.fromString("CB3360C1-4087-4A9E-9B63-B47D50FD534E")
-        private const val TAG = "BeamBle"
+        private const val TAG = "DropBle"
     }
 
     private val manager = ctx.getSystemService(BluetoothManager::class.java)
@@ -87,7 +87,7 @@ class BleTransport(private val ctx: Context, private val listener: Listener) {
             val ss = a.listenUsingInsecureL2capChannel()
             serverSocket = ss
             psm = ss.psm
-            thread(isDaemon = true, name = "beam-l2cap-accept") {
+            thread(isDaemon = true, name = "drop-l2cap-accept") {
                 while (true) {
                     val sock = try {
                         ss.accept()
@@ -271,7 +271,7 @@ class BleTransport(private val ctx: Context, private val listener: Listener) {
             if (!gotPsm.compareAndSet(false, true)) return
             if (status != BluetoothGatt.GATT_SUCCESS || value == null || value.size < 2) return release()
             val psm = ((value[0].toInt() and 0xff) shl 8) or (value[1].toInt() and 0xff)
-            thread(isDaemon = true, name = "beam-l2cap-connect") {
+            thread(isDaemon = true, name = "drop-l2cap-connect") {
                 try {
                     val sock = device.createInsecureL2capChannel(psm)
                     sock.connect()

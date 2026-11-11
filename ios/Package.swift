@@ -6,11 +6,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "BeamCore",
+    name: "DropCore",
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
-        .library(name: "BeamCore", targets: ["BeamCore"]),
-        .executable(name: "beam-cli", targets: ["beam-cli"]),
+        .library(name: "DropCore", targets: ["DropCore"]),
+        .executable(name: "drop-cli", targets: ["drop-cli"]),
     ],
     dependencies: [
         // CryptoKit is built in on Apple platforms. This is the same API for Linux.
@@ -18,12 +18,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "BeamCore",
+            name: "DropCore",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
             ],
             path: "Core"
         ),
-        .executableTarget(name: "beam-cli", dependencies: ["BeamCore"], path: "Tools/beam-cli"),
+        .executableTarget(name: "drop-cli", dependencies: ["DropCore"], path: "Tools/drop-cli"),
     ]
 )

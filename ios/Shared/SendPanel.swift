@@ -87,7 +87,7 @@ struct SendPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Send with Beam").font(.title3.weight(.semibold)).padding(.top, 22)
+            Text("Send with Inkwell Drop").font(.title3.weight(.semibold)).padding(.top, 22)
             Text(payload?.summary ?? problem ?? "Getting ready…")
                 .font(.subheadline).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
                 .padding(.top, 4).padding(.horizontal, 24)
@@ -121,7 +121,7 @@ struct SendPanel: View {
     @ViewBuilder private var content: some View {
         switch engine.bluetooth {
         case .denied:
-            message("Beam isn't allowed to use Bluetooth", "Open Settings › Beam and turn on Bluetooth.")
+            message("Inkwell Drop isn't allowed to use Bluetooth", "Open Settings › Inkwell Drop and turn on Bluetooth.")
         case .off:
             message("Bluetooth is off", "Turn on Bluetooth in Control Centre to find nearby devices.")
         case .unsupported:
@@ -131,7 +131,7 @@ struct SendPanel: View {
                 VStack(spacing: 12) {
                     ProgressView()
                     Text("Looking for nearby devices…").font(.subheadline)
-                    Text("The other device needs Beam installed and Bluetooth on.\nOn an iPhone or iPad, open Beam.")
+                    Text("The other device needs Inkwell Drop installed and Bluetooth on.\nOn an iPhone or iPad, open Inkwell Drop.")
                         .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 24)

@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -15,21 +15,22 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.mangashaduston.beam.core.BeamEnv
-import com.mangashaduston.beam.core.Duplex
-import com.mangashaduston.beam.core.Identity
-import com.mangashaduston.beam.core.IncomingTransfer
-import com.mangashaduston.beam.core.LanServer
-import com.mangashaduston.beam.core.LocalInfo
-import com.mangashaduston.beam.core.PeerLink
-import com.mangashaduston.beam.core.Source
-import com.mangashaduston.beam.core.Transfer
-import com.mangashaduston.beam.core.TransferState
+import com.mangashaduston.inkwelldrop.core.DropEnv
+import com.mangashaduston.inkwelldrop.core.Duplex
+import com.mangashaduston.inkwelldrop.core.Identity
+import com.mangashaduston.inkwelldrop.core.IncomingTransfer
+import com.mangashaduston.inkwelldrop.core.LanServer
+import com.mangashaduston.inkwelldrop.core.LocalInfo
+import com.mangashaduston.inkwelldrop.core.PeerLink
+import com.mangashaduston.inkwelldrop.core.Source
+import com.mangashaduston.inkwelldrop.core.Transfer
+import com.mangashaduston.inkwelldrop.core.TransferState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.Inet4Address
@@ -99,12 +100,12 @@ class HistoryItem(
 
 /** Owns the Bluetooth transport, the open connections and every transfer. One per process. */
 class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listener {
-    private val prefs = app.getSharedPreferences("beam", Context.MODE_PRIVATE)
+    private val prefs = app.getSharedPreferences("drop", Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
 
     val local: LocalInfo
     private val lan: LanServer
-    private val env: BeamEnv
+    private val env: DropEnv
     private val ble = BleTransport(app, this)
 
     /** Devices we have an open connection to, so they can be sent to right away. */
@@ -139,11 +140,11 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         deviceName = prefs.getString("name", null) ?: defaultName()
         local = LocalInfo(identity, deviceName, "android")
         lan = LanServer(local).apply { addressProvider = { wifiAddresses() } }
-        env = BeamEnv(local, MediaStoreSinks(app), lan).apply { useLan = useWifi }
+        env = DropEnv(local, MediaStoreSinks(app), lan).apply { useLan = useWifi }
         loadHistory()
-        app.registerReceiver(object : BroadcastReceiver() {
+        ContextCompat.registerReceiver(app, object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) = refresh()
-        }, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        }, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
         refresh()
     }
 
@@ -254,13 +255,13 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
     private fun closeIdleOutbound() {
         if (seekers > 0) return
         val idle = links.filter { !it.link.busy }
-        thread(name = "beam-idle") {
+        thread(name = "drop-idle") {
             for (e in idle) if (e.outbound) e.link.close() else if (e.link.ready) e.link.sendIdle()
         }
     }
 
     override fun onPeerIdle(link: PeerLink) {
-        main.post { if (seekers == 0 && !link.busy) thread(name = "beam-idle") { link.close() } }
+        main.post { if (seekers == 0 && !link.busy) thread(name = "drop-idle") { link.close() } }
     }
 
     // ---- Connections ----
@@ -335,7 +336,7 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
         if (t is IncomingTransfer) {
             addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, t.results.toList(), t.items.map { guessMime(it.name, it.mime) }, t.text, true))
             if (t.text != null && uiVisible) {
-                app.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Beam", t.text))
+                app.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Inkwell Drop", t.text))
             }
         } else {
             addHistory(HistoryItem(System.currentTimeMillis(), m.peerName, m.summary, emptyList(), emptyList(), null, false))
@@ -350,7 +351,7 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
             onStarted(null)
             return
         }
-        thread(name = "beam-offer") {
+        thread(name = "drop-offer") {
             val t = link.offer(sources, text)
             main.post { onStarted(track(t, false)) }
         }
@@ -365,15 +366,15 @@ class Engine(private val app: Context) : PeerLink.Listener, BleTransport.Listene
 
     fun accept(m: TransferModel, always: Boolean) {
         if (always) trust(m.peerId)
-        thread(name = "beam-accept") { (m.transfer as? IncomingTransfer)?.accept() }
+        thread(name = "drop-accept") { (m.transfer as? IncomingTransfer)?.accept() }
     }
 
     fun decline(m: TransferModel) {
-        thread(name = "beam-decline") { (m.transfer as? IncomingTransfer)?.decline() }
+        thread(name = "drop-decline") { (m.transfer as? IncomingTransfer)?.decline() }
     }
 
     fun cancel(m: TransferModel) {
-        thread(name = "beam-cancel") { m.transfer.cancel() }
+        thread(name = "drop-cancel") { m.transfer.cancel() }
     }
 
     fun findTransfer(id: String): TransferModel? = transfers.firstOrNull { it.id == id }

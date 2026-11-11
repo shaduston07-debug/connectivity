@@ -109,7 +109,7 @@ public final class Session {
               let theirs = try? JSONSerialization.jsonObject(with: Data(theirsRaw.dropFirst())) as? [String: Any]
         else { throw ProtocolError("Expected hello") }
         guard theirs.int("v") == Int64(Proto.version) else {
-            throw ProtocolError("The other device has a different version of Beam. Update both apps.")
+            throw ProtocolError("The other device has a different version of Inkwell Drop. Update both apps.")
         }
         guard let theirEpub = Data(base64Encoded: theirs.string("epub")),
               let theirSpub = Data(base64Encoded: theirs.string("spub")),
@@ -135,7 +135,7 @@ public final class Session {
         let hi = mineFirst ? theirEpub : epub
         let salt = Data(SHA256.hash(data: lo + hi))
         let okm = secret.hkdfDerivedSymmetricKey(using: SHA256.self, salt: salt,
-                                                 sharedInfo: Data("beam/1".utf8), outputByteCount: 64)
+                                                 sharedInfo: Data("inkwell-drop/1".utf8), outputByteCount: 64)
         let bytes = okm.withUnsafeBytes { Data($0) }
         let k1 = SymmetricKey(data: bytes.prefix(32))
         let k2 = SymmetricKey(data: bytes.suffix(32))

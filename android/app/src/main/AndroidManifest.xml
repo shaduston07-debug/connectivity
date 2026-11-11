@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Bluetooth is only used to find and talk to other devices running Beam, never to work out location. -->
+    <!-- Bluetooth is only used to find and talk to other devices running Inkwell Drop, never to work out location. -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -16,12 +16,12 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:name=".BeamApp"
+        android:name=".DropApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Beam"
+        android:label="Inkwell Drop"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Beam">
+        android:theme="@style/Theme.Drop">
 
         <activity
             android:name=".MainActivity"
@@ -40,9 +40,9 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|uiMode"
             android:excludeFromRecents="true"
-            android:label="Beam"
+            android:label="Inkwell Drop"
             android:taskAffinity=""
-            android:theme="@style/Theme.Beam.Sheet">
+            android:theme="@style/Theme.Drop.Sheet">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

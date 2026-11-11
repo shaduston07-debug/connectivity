@@ -1,4 +1,4 @@
-package com.mangashaduston.beam
+package com.mangashaduston.inkwelldrop
 
 import android.content.ContentValues
 import android.content.Context
@@ -7,10 +7,10 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
-import com.mangashaduston.beam.core.FileSink
-import com.mangashaduston.beam.core.ItemMeta
-import com.mangashaduston.beam.core.SinkFactory
-import com.mangashaduston.beam.core.Source
+import com.mangashaduston.inkwelldrop.core.FileSink
+import com.mangashaduston.inkwelldrop.core.ItemMeta
+import com.mangashaduston.inkwelldrop.core.SinkFactory
+import com.mangashaduston.inkwelldrop.core.Source
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -35,7 +35,7 @@ class MediaStoreSinks(private val ctx: Context) : SinkFactory {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, item.name)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/Beam")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/Inkwell Drop")
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val resolver = ctx.contentResolver
@@ -67,7 +67,7 @@ class MediaStoreSinks(private val ctx: Context) : SinkFactory {
     }
 }
 
-/** A file shared to Beam by another app, or picked by the user. */
+/** A file shared to Inkwell Drop by another app, or picked by the user. */
 class UriSource private constructor(
     private val ctx: Context,
     private val uri: Uri,

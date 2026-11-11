@@ -1,4 +1,4 @@
-package com.mangashaduston.beam.core
+package com.mangashaduston.inkwelldrop.core
 
 import org.json.JSONObject
 import java.net.Inet4Address
@@ -12,11 +12,11 @@ import kotlin.concurrent.thread
 
 /**
  * One connection to another device. Either side can offer files over it.
- * The connection usually starts on Bluetooth; file data moves to Wi-Fi when [BeamEnv.lan] allows it.
+ * The connection usually starts on Bluetooth; file data moves to Wi-Fi when [DropEnv.lan] allows it.
  */
 class PeerLink(
     duplex: Duplex,
-    val env: BeamEnv,
+    val env: DropEnv,
     /** Bytes per data message on this connection. Small on Bluetooth so progress and cancel stay responsive. */
     val chunkSize: Int,
     private val listener: Listener,
@@ -46,11 +46,11 @@ class PeerLink(
     private val incoming = ConcurrentHashMap<String, IncomingTransfer>()
     private var dataTarget: IncomingTransfer? = null
     internal val sendQueue: ExecutorService = Executors.newSingleThreadExecutor { r ->
-        Thread(r, "beam-send").apply { isDaemon = true }
+        Thread(r, "drop-send").apply { isDaemon = true }
     }
 
     fun start() {
-        thread(isDaemon = true, name = "beam-link") {
+        thread(isDaemon = true, name = "drop-link") {
             var error: String? = null
             try {
                 session.handshake()
@@ -173,14 +173,14 @@ class LanServer(private val local: LocalInfo) {
             return
         }
         server = s
-        thread(isDaemon = true, name = "beam-lan") {
+        thread(isDaemon = true, name = "drop-lan") {
             while (!s.isClosed) {
                 val sock = try {
                     s.accept()
                 } catch (e: Exception) {
                     break
                 }
-                thread(isDaemon = true, name = "beam-lan-conn") { serve(sock) }
+                thread(isDaemon = true, name = "drop-lan-conn") { serve(sock) }
             }
         }
     }

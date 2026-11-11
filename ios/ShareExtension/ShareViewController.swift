@@ -17,8 +17,8 @@ private struct ShareRoot: View {
     }
 }
 
-/// Beam's entry in the system share sheet. The transfer runs right here, so there is no
-/// switching to the app: pick Beam, tap a device, done.
+/// Inkwell Drop's entry in the system share sheet. The transfer runs right here, so there is no
+/// switching to the app: pick Inkwell Drop, tap a device, done.
 final class ShareViewController: UIViewController {
     private let model = ShareModel()
     private let workDir = FileManager.default.temporaryDirectory.appendingPathComponent("share-\(UUID().uuidString)")
@@ -121,7 +121,7 @@ final class ShareViewController: UIViewController {
             } else if !texts.isEmpty {
                 model.payload = Payload(text: texts.sorted { $0.0 < $1.0 }.map { $0.1 }.joined(separator: "\n"))
             } else {
-                model.problem = "Beam can't read what was shared."
+                model.problem = "Inkwell Drop can't read what was shared."
             }
         }
     }

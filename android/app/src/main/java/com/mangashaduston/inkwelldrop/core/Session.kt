@@ -1,4 +1,4 @@
-package com.mangashaduston.beam.core
+package com.mangashaduston.inkwelldrop.core
 
 import org.json.JSONObject
 import java.io.EOFException
@@ -89,7 +89,7 @@ class Session(private val duplex: Duplex, private val local: LocalInfo) {
         } catch (e: Exception) {
             throw ProtocolException("Bad hello")
         }
-        if (theirs.optInt("v") != Proto.VERSION) throw ProtocolException("The other device has a different version of Beam. Update both apps.")
+        if (theirs.optInt("v") != Proto.VERSION) throw ProtocolException("The other device has a different version of Inkwell Drop. Update both apps.")
         val theirEpub = Crypto.unb64(theirs.optString("epub"))
         val theirSpub = Crypto.unb64(theirs.optString("spub"))
         val sig = Crypto.unb64(theirs.optString("sig"))
@@ -103,7 +103,7 @@ class Session(private val duplex: Duplex, private val local: LocalInfo) {
         val mineFirst = compare(epub, theirEpub) < 0
         val lo = if (mineFirst) epub else theirEpub
         val hi = if (mineFirst) theirEpub else epub
-        val okm = Crypto.hkdf(secret, Crypto.sha256(lo, hi), "beam/1".toByteArray(), 64)
+        val okm = Crypto.hkdf(secret, Crypto.sha256(lo, hi), "inkwell-drop/1".toByteArray(), 64)
         val k1 = SecretKeySpec(okm, 0, 32, "AES")
         val k2 = SecretKeySpec(okm, 32, 32, "AES")
         sendKey = if (mineFirst) k1 else k2

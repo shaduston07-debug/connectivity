@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct BeamApp: App {
+struct DropApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {

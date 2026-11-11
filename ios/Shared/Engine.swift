@@ -137,7 +137,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     private let defaults = UserDefaults.standard
     private let local: LocalInfo
     private let lan: LanServer?
-    private let env: BeamEnv
+    private let env: DropEnv
     private var ble: BleTransport!
 
     private struct LinkEntry {
@@ -152,15 +152,15 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
 
     private override init() {
         let defaults = UserDefaults.standard
-        let name = defaults.string(forKey: "beam.name") ?? UIDevice.current.name
-        let wifi = defaults.object(forKey: "beam.useWifi") as? Bool ?? true
+        let name = defaults.string(forKey: "drop.name") ?? UIDevice.current.name
+        let wifi = defaults.object(forKey: "drop.useWifi") as? Bool ?? true
         let local = LocalInfo(identity: Identity.load(from: defaults), name: name, platform: "ios")
         let lan = Engine.isExtension ? nil : LanServer(local: local)
         deviceName = name
         useWifi = wifi
         self.local = local
         self.lan = lan
-        let env = BeamEnv(local: local, sinks: DocumentSinks(), lan: lan)
+        let env = DropEnv(local: local, sinks: DocumentSinks(), lan: lan)
         env.useLan = wifi
         self.env = env
         super.init()
@@ -168,10 +168,14 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         loadHistory()
     }
 
-    /// Turns Bluetooth on for Beam. The first call shows the system's Bluetooth permission prompt.
+    /// Turns Bluetooth on for Inkwell Drop. The first call shows the system's Bluetooth permission prompt.
     func start() {
         guard ble == nil else { return }
-        ble = BleTransport(receiver: !Engine.isExtension, restoreID: Engine.isExtension ? nil : "beam.central")
+        #if !DROP_EXTENSION
+        // iOS can launch the app straight into the background when a sender comes into range.
+        inForeground = UIApplication.shared.applicationState != .background
+        #endif
+        ble = BleTransport(receiver: !Engine.isExtension, restoreID: Engine.isExtension ? nil : "drop.central")
         ble.onChannel = { [weak self] duplex, outbound in self?.opened(duplex, outbound: outbound) }
         ble.onStateChange = { [weak self] in DispatchQueue.main.async { self?.refresh() } }
         if !Engine.isExtension {
@@ -195,24 +199,24 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
         if n.isEmpty { n = UIDevice.current.name }
         deviceName = n
         local.name = n
-        defaults.set(n, forKey: "beam.name")
+        defaults.set(n, forKey: "drop.name")
     }
 
     func setUseWifi(_ on: Bool) {
         useWifi = on
         env.useLan = on
-        defaults.set(on, forKey: "beam.useWifi")
+        defaults.set(on, forKey: "drop.useWifi")
     }
 
-    private var trusted: [String] { defaults.stringArray(forKey: "beam.trusted") ?? [] }
+    private var trusted: [String] { defaults.stringArray(forKey: "drop.trusted") ?? [] }
 
     func trust(_ peerId: String) {
-        if !trusted.contains(peerId) { defaults.set(trusted + [peerId], forKey: "beam.trusted") }
+        if !trusted.contains(peerId) { defaults.set(trusted + [peerId], forKey: "drop.trusted") }
         trustedCount = trusted.count
     }
 
     func forgetTrusted() {
-        defaults.removeObject(forKey: "beam.trusted")
+        defaults.removeObject(forKey: "drop.trusted")
         trustedCount = 0
     }
 
@@ -415,7 +419,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
                                    files: kept.map { ($0 as NSString).lastPathComponent },
                                    photosSaved: savedCount, text: t.text, incoming: true))
             if !inForeground {
-                let body = t.text ?? (savedCount > 0 && kept.isEmpty ? "Saved to Photos." : "Open Beam to see it. Files are in the Files app, under Beam.")
+                let body = t.text ?? (savedCount > 0 && kept.isEmpty ? "Saved to Photos." : "Open Inkwell Drop to see it. Files are in the Files app, under Inkwell Drop.")
                 notify(id: m.id, title: "Received \(m.summary) from \(m.peerName)", body: body)
             }
         }
@@ -459,10 +463,10 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
 
     /// Asks iOS for extra time while a transfer runs with the app in the background.
     private func updateBackgroundTask() {
-        #if !BEAM_EXTENSION
+        #if !DROP_EXTENSION
         let active = transfers.contains { $0.isActive }
         if active, backgroundTask == .invalid {
-            backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "beam.transfer") { [self] in
+            backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "drop.transfer") { [self] in
                 UIApplication.shared.endBackgroundTask(backgroundTask)
                 backgroundTask = .invalid
             }
@@ -517,7 +521,7 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     // MARK: History
 
     private func loadHistory() {
-        guard let data = defaults.data(forKey: "beam.history"),
+        guard let data = defaults.data(forKey: "drop.history"),
               let items = try? JSONDecoder().decode([HistoryItem].self, from: data) else { return }
         history = items
     }
@@ -534,6 +538,6 @@ final class Engine: NSObject, ObservableObject, PeerLinkListener, UNUserNotifica
     }
 
     private func saveHistory() {
-        defaults.set(try? JSONEncoder().encode(history), forKey: "beam.history")
+        defaults.set(try? JSONEncoder().encode(history), forKey: "drop.history")
     }
 }

@@ -1,4 +1,4 @@
-package com.mangashaduston.beam.core
+package com.mangashaduston.inkwelldrop.core
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -32,7 +32,7 @@ interface SinkFactory {
     fun create(item: ItemMeta): FileSink
 }
 
-class BeamEnv(val local: LocalInfo, val sinks: SinkFactory, val lan: LanServer?) {
+class DropEnv(val local: LocalInfo, val sinks: SinkFactory, val lan: LanServer?) {
     /** Move file data to Wi-Fi when both devices are on the same network. */
     @Volatile
     var useLan = true
