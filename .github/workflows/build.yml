@@ -122,8 +122,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest InkwellDrop.apk InkwellDrop.ipa \
-            --target "$GITHUB_SHA" \
-            --title "Inkwell Drop (build ${{ github.run_number }})" \
-            --notes "Built from ${GITHUB_SHA::7}. InkwellDrop.apk installs directly on Android. InkwellDrop.ipa is unsigned: install it with SideStore, AltStore, Sideloadly or similar."
+          title="Inkwell Drop (build ${{ github.run_number }})"
+          notes="Built from ${GITHUB_SHA::7}. InkwellDrop.apk installs directly on Android 12 or later. InkwellDrop.ipa is unsigned: install it with SideStore, AltStore, Sideloadly or similar."
+          if gh release view latest >/dev/null 2>&1; then
+            # Update in place rather than delete and recreate: the links then only drop out for the
+            # few seconds each file takes to replace, not for the whole publish.
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/latest" -f sha="$GITHUB_SHA" -F force=true
+            gh release upload latest InkwellDrop.apk InkwellDrop.ipa --clobber
+            gh release edit latest --title "$title" --notes "$notes"
+          else
+            gh release create latest InkwellDrop.apk InkwellDrop.ipa --target "$GITHUB_SHA" --title "$title" --notes "$notes"
+          fi
