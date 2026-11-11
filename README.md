@@ -59,7 +59,7 @@ Neither system lets an app choose its own position, but you can pin it:
 ## Limits you should know about
 
 - **Bluetooth on its own is slow for big files.** Expect very roughly 50–150 KB per second: a photo takes a few seconds, a one-minute video takes minutes. Use one of the Wi-Fi links above for anything large.
-- **iOS asks once to find devices on your local network.** Inkwell Drop triggers this question when it first opens. Allow it and the next transfer uses Wi-Fi.
+- **iOS asks once to find devices on your local network.** Inkwell Drop triggers this question when it first opens. Allow it, or transfers stay on Bluetooth and the direct links.
 - **The iOS share sheet shows up as "iPhone" or "iPad".** The name you set in the app applies to the app. iOS does not share settings between an app and its share extension unless the build is signed with an App Group.
 - **Not yet run on real hardware.** The transfer engine is tested on every build, including the Android (Kotlin) and iOS (Swift) implementations talking to each other. The Bluetooth layers compile and follow each platform's documented behaviour, but were written without phones to try them on. If two devices don't find each other, that is the place to look.
 
